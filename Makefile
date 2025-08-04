@@ -48,15 +48,15 @@ test:
 ## Download Data from storage system
 .PHONY: sync_data_down
 sync_data_down:
-	aws s3 sync s3:///data/ \
-		data/  --profile 
+	az storage blob download-batch -s da_cambiare/data/ \
+		-d data/
 	
 
 ## Upload Data to storage system
 .PHONY: sync_data_up
 sync_data_up:
-	aws s3 sync data/ \
-		s3:///data  --profile 
+	az storage blob upload-batch -d da_cambiare/data/ \
+		-s data/
 	
 
 
@@ -78,7 +78,7 @@ create_environment:
 ## Make dataset
 .PHONY: data
 data: requirements
-	$(PYTHON_INTERPRETER) ml_research_kills_alpha/dataset.py
+	$(PYTHON_INTERPRETER) src/dataset.py
 
 
 #################################################################################

@@ -5,7 +5,7 @@ build-backend = "flit_core.buildapi"
 [project]
 name = "ml_research_kills_alpha"
 version = "0.0.1"
-description = "We  measure how much of the ML prediction edge survives when accounting for the availability of ML architectures"
+description = "We measure how much of the ML edge in predicting future stocks survives when accounting for availability of algorithm architectures"
 authors = [
   { name = "Federico Tiberga" },
 ]
@@ -20,13 +20,13 @@ requires-python = "~=3.13.0"
 
 [tool.ruff]
 line-length = 99
-src = ["ml_research_kills_alpha"]
-include = ["pyproject.toml", "ml_research_kills_alpha/**/*.py"]
+src = ["src"]
+include = ["pyproject.toml", "src/**/*.py"]
 
 [tool.ruff.lint]
 extend-select = ["I"]  # Add import sorting
 
 [tool.ruff.lint.isort]
-known-first-party = ["ml_research_kills_alpha"]
+known-first-party = ["src"]
 force-sort-within-sections = true
 
