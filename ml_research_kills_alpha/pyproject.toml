@@ -1,0 +1,32 @@
+[build-system]
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "ml_research_kills_alpha"
+version = "0.0.1"
+description = "We  measure how much of the ML prediction edge survives when accounting for the availability of ML architectures"
+authors = [
+  { name = "Federico Tiberga" },
+]
+license = { file = "LICENSE" }
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License"
+]
+requires-python = "~=3.13.0"
+
+
+[tool.ruff]
+line-length = 99
+src = ["ml_research_kills_alpha"]
+include = ["pyproject.toml", "ml_research_kills_alpha/**/*.py"]
+
+[tool.ruff.lint]
+extend-select = ["I"]  # Add import sorting
+
+[tool.ruff.lint.isort]
+known-first-party = ["ml_research_kills_alpha"]
+force-sort-within-sections = true
+
