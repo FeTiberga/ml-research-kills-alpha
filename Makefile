@@ -18,8 +18,6 @@ requirements:
 	$(PYTHON_INTERPRETER) -m pip install -r requirements.txt
 	
 
-
-
 ## Delete all compiled Python files
 .PHONY: clean
 clean:
@@ -33,6 +31,7 @@ lint:
 	ruff format --check
 	ruff check
 
+
 ## Format source code with ruff
 .PHONY: format
 format:
@@ -40,11 +39,12 @@ format:
 	ruff format
 
 
-
 ## Run tests
 .PHONY: test
 test:
 	python -m pytest tests
+
+
 ## Download Data from storage system
 .PHONY: sync_data_down
 sync_data_down:
@@ -59,6 +59,11 @@ sync_data_up:
 		-s data/
 	
 
+## Export all results as LaTeX tables/figures
+.PHONY: latex
+latex:
+	@echo "📝  Generating LaTeX exports…"
+	python -m ml_research_kills_alpha.reports.generate_latex
 
 
 ## Set up Python interpreter environment
@@ -68,8 +73,6 @@ create_environment:
 	@echo ">>> New virtualenv created. Activate with:\nworkon $(PROJECT_NAME)"
 	
 
-
-
 #################################################################################
 # PROJECT RULES                                                                 #
 #################################################################################
@@ -78,7 +81,7 @@ create_environment:
 ## Make dataset
 .PHONY: data
 data: requirements
-	$(PYTHON_INTERPRETER) src/dataset.py
+	$(PYTHON_INTERPRETER) ml_research_kills_alpha/dataset.py
 
 
 #################################################################################
