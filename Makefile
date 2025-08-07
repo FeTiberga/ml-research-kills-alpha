@@ -5,6 +5,9 @@
 PROJECT_NAME = ml_research_kills_alpha
 PYTHON_VERSION = 3.13
 PYTHON_INTERPRETER = python
+AZURE_STORAGE_ACCOUNT = your_storage_account
+AZURE_STORAGE_KEY = your_storage_key
+AZURE_CONTAINER_NAME = da_cambiare
 
 #################################################################################
 # COMMANDS                                                                      #
@@ -48,14 +51,14 @@ test:
 ## Download Data from storage system
 .PHONY: sync_data_down
 sync_data_down:
-	az storage blob download-batch -s da_cambiare/data/ \
+	az storage blob download-batch -s $(AZURE_CONTAINER_NAME)/data/ \
 		-d data/
 	
 
 ## Upload Data to storage system
 .PHONY: sync_data_up
 sync_data_up:
-	az storage blob upload-batch -d da_cambiare/data/ \
+	az storage blob upload-batch -d $(AZURE_CONTAINER_NAME)/data/ \
 		-s data/
 	
 
@@ -79,9 +82,17 @@ create_environment:
 
 
 ## Make dataset
+VERSION ?= latest
+END_DATE ?= latest
+
 .PHONY: data
-data: requirements
-	$(PYTHON_INTERPRETER) ml_research_kills_alpha/dataset.py
+data:
+	@echo "Downloading OSAP signals (version=$(VERSION))"
+	python -m ml_research_kills_alpha.datasets.chen_zimmermann \
+		--version $(VERSION)
+	@echo "Downloading CRSP stock data (end-date=$(END_DATE) or latest)"
+	python -m ml_research_kills_alpha.datasets.crsp_stock \
+		--end-date $(END_DATE)
 
 
 #################################################################################
