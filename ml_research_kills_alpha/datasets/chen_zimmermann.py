@@ -7,7 +7,7 @@ import openassetpricing as oap
 import pandas as pd
 
 from ml_research_kills_alpha.datasets.download import Downloader
-from ml_research_kills_alpha.support.wrds_connection import connect_wrds
+from ml_research_kills_alpha.support.wrds_connection import prepare_wrds_noninteractive
 
 
 class ChenZimmermannDownloader(Downloader):
@@ -21,7 +21,7 @@ class ChenZimmermannDownloader(Downloader):
     def download(self) -> Path:
         
         # initialise the API client (None for latest release)
-        conn = connect_wrds()
+        prepare_wrds_noninteractive()
         client = oap.OpenAP()
 
         # fetch into a pandas DataFrame
