@@ -82,17 +82,20 @@ create_environment:
 
 
 ## Make dataset
-VERSION ?= latest
-END_DATE ?= latest
+.PHONY: raw_data
+raw_data:
+	@echo "Downloading Chen Zimmermann (2022) signals"
+	python -m ml_research_kills_alpha.datasets.chen_zimmermann
+	@echo "Downloading CRSP stock data"
+	python -m ml_research_kills_alpha.datasets.crsp_stock
 
-.PHONY: data
-data:
-	@echo "Downloading OSAP signals (version=$(VERSION))"
-	python -m ml_research_kills_alpha.datasets.chen_zimmermann \
-		--version $(VERSION)
-	@echo "Downloading CRSP stock data (end-date=$(END_DATE) or latest)"
-	python -m ml_research_kills_alpha.datasets.crsp_stock \
-		--end-date $(END_DATE)
+
+.PHONY: processed_data
+processed_data:
+	@echo "Downloading Chen Zimmermann (2022) signals"
+	python -m ml_research_kills_alpha.datasets.chen_zimmermann
+	@echo "Downloading CRSP stock data"
+	python -m ml_research_kills_alpha.datasets.crsp_stock
 
 
 #################################################################################

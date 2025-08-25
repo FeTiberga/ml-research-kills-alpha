@@ -1,1 +1,2 @@
-from src import config  # noqa: F401
+from ml_research_kills_alpha import config
+from ml_research_kills_alpha import support
