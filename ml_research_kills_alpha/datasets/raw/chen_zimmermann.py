@@ -6,7 +6,7 @@ from pathlib import Path
 import openassetpricing as oap
 import pandas as pd
 
-from ml_research_kills_alpha.datasets.download import Downloader
+from ml_research_kills_alpha.datasets.raw.download import Downloader
 from ml_research_kills_alpha.support.wrds_connection import prepare_wrds_noninteractive
 
 

@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from fredapi import Fred
 
 from .download import Downloader
-from ..config import RAW_DATA_DIR
+from ...config import RAW_DATA_DIR
 
 GW_URL = "https://www.ivo-welch.info/papers/Goyal_Welch_Data/goyal-welch-a.csv"
 
