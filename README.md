@@ -60,10 +60,14 @@ We measure how much of the ML edge in predicting future stocks survives when acc
     │   
     ├── modeling                       <- Scripts to handle ML models
     │   ├── base_model.py              <- defines Modeler base class
-    │   ├── linear_models.py           <- defines HuberRegressorModel and ElasticNetModel
-    │   ├── xgboost_model.py           <- defines XGBoostModel
-    │   ├── neural_networks.py         <- defines FFNNModel and LSTMModel (and potentially helper classes)
-    │   └── ensemble_model.py          <- defines EnsembleModel (if not combined with neural_networks.py)
+    │   ├── elastic_net.py             <- defines ElasticNetModel
+    │   ├── ensemble.py                <- defines EnsembleModel
+    │   ├── huber_ols.py               <- defines HuberRegressorModel
+    │   ├── lstm.py                    <- defines LSTMModel
+    │   ├── neural_networks.py         <- defines FFNNModel
+    │   ├── rolling_trainer.py         
+    │   ├── run_experiments.py         
+    │   └── xgboost.py                 <- defines XGBoostModel
     │   
     ├── support                        <- support files
     │   ├── __init__.py
