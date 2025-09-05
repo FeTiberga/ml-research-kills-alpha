@@ -13,6 +13,7 @@ wrds
 psycopg2-binary
 
 torch>=2.3
+xgboost
 
 matplotlib>=3.8
 plotly

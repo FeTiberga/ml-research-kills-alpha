@@ -93,9 +93,9 @@ raw_data:
 .PHONY: processed_data
 processed_data:
 	@echo "Processing Chen Zimmermann (2022) signals"
-	python -m ml_research_kills_alpha.datasets.processed.chen_zimmermann
+	python -m ml_research_kills_alpha.datasets.processed.chen_zimmermann $(if $(end_date),--end_date $(end_date),)
 	@echo "Processing CRSP stock data"
-	python -m ml_research_kills_alpha.datasets.processed.crsp_stock
+	python -m ml_research_kills_alpha.datasets.processed.crsp_stock $(if $(end_date),--end_date $(end_date),)
 
 
 #################################################################################

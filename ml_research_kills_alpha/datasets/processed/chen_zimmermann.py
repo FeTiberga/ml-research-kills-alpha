@@ -7,7 +7,11 @@ import pandas as pd
 import numpy as np
 
 from ml_research_kills_alpha.datasets.processed.cleaner import Cleaner
-from ml_research_kills_alpha.support import START_DATE
+from ml_research_kills_alpha.support import START_DATE, END_DATE_2023
+import argparse
+
+
+DEFAULT_END_DATE = END_DATE_2023
 
 
 class ChenZimmermannCleaner(Cleaner):
@@ -19,7 +23,7 @@ class ChenZimmermannCleaner(Cleaner):
       - replace missing values with 0
       - write full-sample and post-2005 variants
     """
-    def __init__(self, end_date: str):
+    def __init__(self, end_date: str = DEFAULT_END_DATE):
         super().__init__(dataset_name="chen_zimmermann")
         self.start_date = pd.to_datetime(START_DATE, format="%m/%d/%Y")
         self.end_date = pd.to_datetime(end_date, format="%m/%d/%Y")
@@ -64,4 +68,10 @@ class ChenZimmermannCleaner(Cleaner):
 
 
 if __name__ == "__main__":
-    ChenZimmermannCleaner().clean()
+
+    parser = argparse.ArgumentParser(description="Clean Chen & Zimmermann signals dataset.")
+    parser.add_argument("--end_date", type=str, default=DEFAULT_END_DATE,
+                        help=f"End date in MM/DD/YYYY format (default: {DEFAULT_END_DATE})")
+    args = parser.parse_args()
+
+    ChenZimmermannCleaner(end_date=args.end_date).clean()

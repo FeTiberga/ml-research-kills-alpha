@@ -7,10 +7,10 @@ from pathlib import Path
 import pandas as pd
 
 from ml_research_kills_alpha.support import Logger
-from ml_research_kills_alpha.config import RAW_DATA_DIR, PROCESSED_DATA_DIR
+from ml_research_kills_alpha.config import RAW_DATA_DIR, INTERIM_DATA_DIR
 from ml_research_kills_alpha.support import CUTOFF_2005
 RAW_DIR = Path(RAW_DATA_DIR)
-PROCESSED_DIR = Path(PROCESSED_DATA_DIR)
+INTERIM_DIR = Path(INTERIM_DATA_DIR)
 
 
 class Cleaner(ABC):
@@ -21,15 +21,15 @@ class Cleaner(ABC):
     def __init__(self, dataset_name: str):
         self.logger = Logger()
         self.dataset_name = dataset_name
-        self.processed_dir = PROCESSED_DIR
+        self.interim_dir = INTERIM_DIR
         self.raw_dir = RAW_DIR
         
         # cleaning comes only after downloading
         if not self.raw_dir.exists():
             self.logger.error(f"Raw directory {self.raw_dir} does not exist.")
             raise FileNotFoundError(f"Raw directory {self.raw_dir} does not exist.")
-        self.processed_dir.mkdir(parents=True, exist_ok=True)
-        self.logger.info(f"Initialized cleaner for {self.dataset_name} at {self.processed_dir}")
+        self.interim_dir.mkdir(parents=True, exist_ok=True)
+        self.logger.info(f"Initialized cleaner for {self.dataset_name} at {self.interim_dir}")
 
     @abstractmethod
     def clean(self) -> Path:
@@ -51,7 +51,7 @@ class Cleaner(ABC):
 
     def _save_dataframe(self, df: pd.DataFrame, filename: str) -> tuple[Path, Path]:
         # Save full cleaned dataset
-        dest_full = self.processed_dir / filename
+        dest_full = self.interim_dir / filename
         df.to_csv(dest_full, index=False)
         self.logger.info(f"Saved clean file {self.dataset_name} -> {dest_full}")
 
@@ -59,7 +59,7 @@ class Cleaner(ABC):
         if "date" in df.columns:
             df_post_2005 = df[df["date"] >= pd.to_datetime(CUTOFF_2005, format="%m/%d/%Y")]
             post_2005_filename = filename.replace(".csv", "_post2005.csv")
-            dest_post_2005 = self.processed_dir / post_2005_filename
+            dest_post_2005 = self.interim_dir / post_2005_filename
             df_post_2005.to_csv(dest_post_2005, index=False)
             self.logger.info(f"Saved post-2005 file {self.dataset_name} -> {dest_post_2005}")
 
