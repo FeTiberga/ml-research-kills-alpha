@@ -1,4 +1,4 @@
-# ml_research_kills_alpha/datasets/chen_zimmermann.py
+# ml_research_kills_alpha/datasets/raw/chen_zimmermann.py
 # Downloader for the Chen & Zimmermann dataset using openassetpricing
 
 from pathlib import Path

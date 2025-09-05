@@ -201,17 +201,23 @@ def prepare_wrds_noninteractive(
     Returns the pgpass path used.
     """
     _load_dotenv_if_available()
+    
     host = host or os.getenv("WRDS_PGHOST", DEFAULT_HOST)
     port = int(port or os.getenv("WRDS_PGPORT", DEFAULT_PORT))
     dbname = dbname or os.getenv("WRDS_DBNAME", DEFAULT_DB)
+    
     u, p = get_wrds_credentials(user, password)
+    
     pgpass_path = ensure_pgpass(u, p, host=host, port=port, dbname=dbname)
+    
     os.environ["WRDS_USERNAME"] = u
     os.environ["WRDS_PASSWORD"] = p
     os.environ["PGUSER"] = u
     os.environ["PGPASSWORD"] = p
     os.environ["PGPASSFILE"] = str(pgpass_path)
+    
     logger.debug(f"WRDS non-interactive env prepared: {pgpass_path}")
+    
     return pgpass_path
 
 

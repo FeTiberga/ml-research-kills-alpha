@@ -1,5 +1,5 @@
 # ml_research_kills_alpha/datasets/download.py
-# Base class for dataset downloaders in the ml_research_kills_alpha project.
+# Base class for datasets downloaders
 
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -8,6 +8,7 @@ import pandas as pd
 
 from ml_research_kills_alpha.support import Logger
 from ml_research_kills_alpha.config import RAW_DATA_DIR
+RAW_DATA_DIR = Path(RAW_DATA_DIR)
 
 
 class Downloader(ABC):
@@ -18,7 +19,7 @@ class Downloader(ABC):
     def __init__(self, dataset_name: str):
         self.logger = Logger()
         self.dataset_name = dataset_name
-        self.raw_dir = Path(RAW_DATA_DIR)
+        self.raw_dir = RAW_DATA_DIR
         self.raw_dir.mkdir(parents=True, exist_ok=True)
         self.logger.info(f"Initialized downloader for {self.dataset_name} at {self.raw_dir}")
 
@@ -33,5 +34,5 @@ class Downloader(ABC):
         """
         dest = self.raw_dir / filename
         df.to_csv(dest, index=False)
-        self.logger.info(f"Saved {self.dataset_name} -> {dest}")
+        self.logger.info(f"Saved raw file {self.dataset_name} -> {dest}")
         return dest

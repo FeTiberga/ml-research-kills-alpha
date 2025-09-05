@@ -9,11 +9,11 @@ We measure how much of the ML edge in predicting future stocks survives when acc
 ## Project Organization
 
 ```
-├── LICENSE                   <- Open-source license if one is chosen
+├── LICENSE                   <- Open-source MIT license
 ├── Makefile                  <- Makefile with convenience commands like `make data` or `make train`
 ├── README.md                 <- The top-level README for developers using this project.
+|
 ├── data       
-│   ├── external              <- Data from third party sources.
 │   ├── interim               <- Intermediate data that has been transformed.
 │   ├── processed             <- The final, canonical data sets for modeling.
 │   └── raw                   <- The original, immutable data dump.
@@ -38,25 +38,38 @@ We measure how much of the ML edge in predicting future stocks survives when acc
 │                                generated with `pip freeze > requirements.txt`
 │       
 ├── setup.cfg                 <- Configuration file for flake8
-│       
+|
 └── ml_research_kills_alpha   <- Source code for use in this project.
     │
     ├── __init__.py                <- Makes src a Python module
-    │   
+    │
     ├── config.py                  <- Store useful variables and configuration
-    │   
+    │
     ├── datasets                   <- Scripts to download or generate data
-    │   ├── __init__.py    
-    │   ├── download.py            <- basic class to handle downloading logic   
-    │   └── chen_zimmermann.py     <- code to download data from Chen Zimmermann (2020)
-    │   └── crsp.py                <- code to download CRSP stock data
+    │   ├── __init__.py
+    │   ├── processed                  <- Scripts to process and clean raw datasets
+    │   │   ├── clearer.py             <- Basic class to handle cleaning logic
+    │   │   ├── chen_zimmermann.py     <- Code to clean data from Chen Zimmermann (2020)
+    │   │   └── crsp.py                <- Code to clean CRSP stock data
+    │   └── raw                        <- Scripts to download raw datasets
+    │       ├── download.py            <- Basic class to handle downloading logic
+    │       ├── chen_zimmermann.py     <- Code to download data from Chen Zimmermann (2020)
+    │       └── crsp.py                <- Code to download CRSP stock data
     │    
     ├── features.py                <- Code to create features for modeling
     │   
-    ├── modeling                   
-    │   ├── __init__.py    
-    │   ├── predict.py             <- Code to run model inference with trained models          
-    │   └── train.py               <- Code to train models
+    ├── modeling                       <- Scripts to handle ML models
+    │   ├── base_model.py              <- defines Modeler base class
+    │   ├── linear_models.py           <- defines HuberRegressorModel and ElasticNetModel
+    │   ├── xgboost_model.py           <- defines XGBoostModel
+    │   ├── neural_networks.py         <- defines FFNNModel and LSTMModel (and potentially helper classes)
+    │   └── ensemble_model.py          <- defines EnsembleModel (if not combined with neural_networks.py)
+    │   
+    ├── support                        <- support files
+    │   ├── __init__.py
+    │   ├── constants.py               <- common constants used in the project
+    │   ├── logger.py                  <- script handling logging logic
+    │   ├── wrds_connection.py         <- script handling connection to WRDS server
     │   
     └── plots.py                   <- Code to create visualizations
 ```

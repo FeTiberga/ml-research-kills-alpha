@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 
 from ml_research_kills_alpha.datasets.raw.download import Downloader
-from ml_research_kills_alpha.support import START_DATE_CRSP
+from ml_research_kills_alpha.support import START_DATE
 from ml_research_kills_alpha.support.wrds_connection import connect_wrds
 
 
@@ -17,7 +17,7 @@ class CRSPDownloader(Downloader):
     """
     def __init__(self):
         super().__init__(dataset_name="crsp_stock")
-        self.start_date = START_DATE_CRSP
+        self.start_date = START_DATE
 
     def download(self) -> Path:
 
@@ -25,10 +25,7 @@ class CRSPDownloader(Downloader):
         self.logger.info("Downloading CRSP Stock data...")
         try:
             crsp = conn.raw_sql(f"""
-            SELECT
-                m.permno, m.date,
-                m.ret, m.retx, m.prc, m.shrout, m.altprc, m.vol, m.bid, m.ask,
-                n.shrcd, n.exchcd
+            SELECT *
             FROM crsp.msf AS m
             JOIN crsp.msenames AS n
             ON m.permno = n.permno
@@ -52,9 +49,7 @@ class CRSPDownloader(Downloader):
         )
 
         # handle possible None end_date
-        first_date_short = first_date.strftime("%Y%m%d")
-        last_date_short = last_date.strftime("%Y%m%d")
-        filename = f"crsp_stock_{first_date_short}_{last_date_short}.csv"
+        filename = f"crsp_stock.csv"
         out_path = self._save_dataframe(df, filename)
         return out_path
 
