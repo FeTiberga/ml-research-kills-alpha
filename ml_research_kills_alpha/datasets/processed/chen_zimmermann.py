@@ -16,7 +16,7 @@ DEFAULT_END_DATE = END_DATE_2023
 
 class ChenZimmermannCleaner(Cleaner):
     """
-    Cleans and normalizes Chen & Zimmermann signals (OpenAssetPricing).
+    Cleans and normalizes Chen & Zimmermann signals.
     Steps:
       - consider data from START_DATE and end_date (parameter)
       - cross-sectional percent-rank features by month to [-1, 1]
@@ -24,7 +24,7 @@ class ChenZimmermannCleaner(Cleaner):
       - write full-sample and post-2005 variants
     """
     def __init__(self, end_date: str = DEFAULT_END_DATE):
-        super().__init__(dataset_name="chen_zimmermann")
+        super().__init__(dataset_name="chen_zimmermann_signals")
         self.start_date = pd.to_datetime(START_DATE, format="%m/%d/%Y")
         self.end_date = pd.to_datetime(end_date, format="%m/%d/%Y")
 
@@ -32,7 +32,7 @@ class ChenZimmermannCleaner(Cleaner):
 
         # load the raw signals
         self.logger.info(f"Loading raw anomaly signals from {self.dataset_name}")
-        file_name = self.raw_dir / "chen_zimmermann_signals.csv"
+        file_name = self.raw_dir / f"{self.dataset_name}.csv"
         if not file_name.exists():
             self.logger.error(f"Raw signals file not found: {file_name}, run download file first")
             raise FileNotFoundError(f"Raw signals file not found: {file_name}, run download file first")
@@ -58,8 +58,7 @@ class ChenZimmermannCleaner(Cleaner):
         df[feature_cols] = df[feature_cols].fillna(0.0)
 
         # save full and post-2005 datasets
-        out_full, out_post = self._save_dataframe(df.sort_values(["date", "permno"]).reset_index(drop=True),
-                                                  "chen_zimmermann_signals.csv")
+        out_full, out_post = self._save_dataframe(df.sort_values(["date", "permno"]).reset_index(drop=True), f"{self.dataset_name}.csv")
 
         self.logger.info("Cleaned Chen & Zimmermann signals saved")
         self.logger.info(f"Full sample: {out_full}")
@@ -67,11 +66,14 @@ class ChenZimmermannCleaner(Cleaner):
         return out_full
 
 
-if __name__ == "__main__":
+def main(end_date: str = DEFAULT_END_DATE):
+    cleaner = ChenZimmermannCleaner(end_date=end_date)
+    cleaner.clean()
 
+
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Clean Chen & Zimmermann signals dataset.")
     parser.add_argument("--end_date", type=str, default=DEFAULT_END_DATE,
                         help=f"End date in MM/DD/YYYY format (default: {DEFAULT_END_DATE})")
     args = parser.parse_args()
-
-    ChenZimmermannCleaner(end_date=args.end_date).clean()
+    main(end_date=args.end_date)

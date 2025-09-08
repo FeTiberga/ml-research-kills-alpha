@@ -41,6 +41,9 @@ class ChenZimmermannDownloader(Downloader):
         return out_path
 
 
-if __name__ == "__main__":
+def main():
     downloader = ChenZimmermannDownloader()
     downloader.download()
+
+if __name__ == "__main__":
+    main()

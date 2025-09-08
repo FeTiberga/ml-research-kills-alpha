@@ -12,8 +12,7 @@ from ml_research_kills_alpha.support.wrds_connection import connect_wrds
 
 class CRSPDownloader(Downloader):
     """
-    Downloads anomaly signals from the Chen & Zimmermann dataset via the
-    openassetpricing package.
+    Downloads CRSP Stock data using the WRDS API
     """
     def __init__(self):
         super().__init__(dataset_name="crsp_stock")
@@ -25,7 +24,9 @@ class CRSPDownloader(Downloader):
         self.logger.info("Downloading CRSP Stock data...")
         try:
             crsp = conn.raw_sql(f"""
-            SELECT *
+            SELECT m.permno, m.date, ABS(m.prc) AS prc, m.ret, 
+                   m.retx, m.shrout, m.cfacpr, m.cfacshr, n.ticker,
+                   n.cusip, n.exchcd, n.shrcd, m.siccd
             FROM crsp.msf AS m
             JOIN crsp.msenames AS n
             ON m.permno = n.permno
@@ -33,6 +34,7 @@ class CRSPDownloader(Downloader):
             AND (n.nameendt IS NULL OR m.date <= n.nameendt)
             WHERE m.date >= '{self.start_date}'
             AND n.shrcd IN (10, 11)
+            AND n.exchcd IN (1, 2, 3)
             """)
             self.logger.info("CRSP Stock data downloaded successfully.")
         except Exception as e:
@@ -54,6 +56,9 @@ class CRSPDownloader(Downloader):
         return out_path
 
 
+def main():
+     downloader = CRSPDownloader()
+     downloader.download()
+
 if __name__ == "__main__":
-    downloader = CRSPDownloader()
-    downloader.download()
+    main()

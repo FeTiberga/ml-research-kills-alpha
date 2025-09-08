@@ -34,8 +34,7 @@ We measure how much of the ML edge in predicting future stocks survives when acc
 ├── reports                   <- Generated analysis as HTML, PDF, LaTeX, etc.
 │   └── figures               <- Generated graphics and figures to be used in reporting
 │       
-├── requirements.txt          <- The requirements file for reproducing the analysis environment, e.g.
-│                                generated with `pip freeze > requirements.txt`
+├── requirements.txt          <- The requirements file for reproducing the analysis environment
 │       
 ├── setup.cfg                 <- Configuration file for flake8
 |
@@ -47,14 +46,20 @@ We measure how much of the ML edge in predicting future stocks survives when acc
     │
     ├── datasets                   <- Scripts to download or generate data
     │   ├── __init__.py
+    │   ├── data                                  <- Small data files that can be pushed to Github
+    │   │   ├── cz_signal_doc.py                  <- Description and publication date of Chen Zimmermann (2020) signals
+    │   │   ├── ff_industry_classification.json   <- 49 industry classification indicators from Fama and French (1997)
+    │   │   └── gw_predictor_data_2024            <- Data from Welch and Goyal (2008) up to December 2024
     │   ├── processed                  <- Scripts to process and clean raw datasets
     │   │   ├── clearer.py             <- Basic class to handle cleaning logic
     │   │   ├── chen_zimmermann.py     <- Code to clean data from Chen Zimmermann (2020)
     │   │   └── crsp.py                <- Code to clean CRSP stock data
-    │   └── raw                        <- Scripts to download raw datasets
-    │       ├── download.py            <- Basic class to handle downloading logic
-    │       ├── chen_zimmermann.py     <- Code to download data from Chen Zimmermann (2020)
-    │       └── crsp.py                <- Code to download CRSP stock data
+    │   ├── raw                        <- Scripts to download raw datasets
+    │   │   ├── download.py            <- Basic class to handle downloading logic
+    │   │   ├── chen_zimmermann.py     <- Code to download data from Chen Zimmermann (2020)
+    │   │   └── crsp.py                <- Code to download CRSP stock data
+    │   ├── data_pipeline.py           <- Code for full data processing pipeline
+    │   └── useful_files               <- Paths to useful files used in the data processing pipeline
     │    
     ├── features.py                <- Code to create features for modeling
     │   

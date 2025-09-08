@@ -1,0 +1,106 @@
+{
+    "Agric": {
+        "name": "Agriculture",
+        "ranges": [[100, 799], [2048, 2048]]
+    },
+    "Food": {
+        "name": "Food Products",
+        "ranges": [[2000, 2046], [2050, 2063], [2070, 2079], [2090, 2095], [2098, 2099]]
+    },
+    "Soda": {
+        "name": "Candy and Soda",
+        "ranges": [[2064, 2068], [2086, 2087], [2096, 2097]]
+    },
+    "Beer": {
+        "name": "Alcoholic Beverages",
+        "ranges": [[2080, 2085]]
+    },
+    "Smoke": {
+        "name": "Tobacco Products",
+        "ranges": [[2100, 2199]]
+    },
+    "Toys": {
+        "name": "Recreational Products",
+        "ranges": [[900, 999], [3650, 3652], [3732, 3732], [3930, 3949]]
+    },
+    "Fun": {
+        "name": "Entertainment",
+        "ranges": [[7800, 7841], [7900, 7999]]
+    },
+    "Books": {
+        "name": "Printing and Publishing",
+        "ranges": [[2700, 2749], [2770, 2799]]
+    },
+    "Hshld": {
+        "name": "Consumer Goods",
+        "ranges": [[2047, 2047], [2391, 2392], [2510, 2519], [2590, 2599], [2840, 2844],
+                   [3160, 3199], [3229, 3231], [3260, 3260], [3262, 3263], [3269, 3269],
+                   [3630, 3639], [3750, 3751], [3800, 3800], [3860, 3879], [3910, 3919],
+                   [3960, 3961], [3991, 3991], [3995, 3995]]
+    },
+    "Clths": {
+        "name": "Apparel",
+        "ranges": [[2300, 2390], [3020, 3021], [3100, 3111], [3130, 3159], [3965, 3965]]
+    },
+    "Hlth": {"name": "Healthcare", "ranges": [[8000, 8099]]},
+    "MedEq": {"name": "Medical Equipment", "ranges": [[3693, 3693], [3840, 3851]]},
+    "Drugs": {"name": "Pharmaceutical Products", "ranges": [[2830, 2836]]},
+    "Chems": {"name": "Chemicals", "ranges": [[2800, 2829], [2850, 2899]]},
+    "Rubbr": {"name": "Rubber and Plastic Products", "ranges": [[3000, 3000], [3050, 3099]]},
+    "Txtls": {"name": "Textiles", "ranges": [[2200, 2295], [2297, 2299], [2393, 2395], [2397, 2399]]},
+    "BldMt": {
+        "name": "Construction Materials",
+        "ranges": [[800, 899], [2400, 2439], [2450, 2459], [2490, 2499], [2950, 2952],
+                   [3200, 3219], [3240, 3259], [3261, 3261], [3264, 3264], [3270, 3299],
+                   [3420, 3442], [3446, 3452], [3490, 3499], [3996, 3996]]
+    },
+    "Cnstr": {"name": "Construction", "ranges": [[1500, 1549], [1600, 1699], [1700, 1799]]},
+    "Steel": {"name": "Steel Works, Etc.", "ranges": [[3300, 3369], [3390, 3399]]},
+    "FabPr": {"name": "Fabricated Products", "ranges": [[3400, 3400], [3443, 3444], [3460, 3479]]},
+    "Mach": {"name": "Machinery", "ranges": [[3510, 3536], [3540, 3569], [3580, 3599]]},
+    "ElcEq": {
+        "name": "Electrical Equipment",
+        "ranges": [[3600, 3621], [3623, 3629], [3640, 3646], [3648, 3649],
+                   [3660, 3660], [3691, 3692], [3699, 3699]]
+    },
+    "Misc": {"name": "Miscellaneous", "ranges": [[3900, 3900], [3990, 3990], [3999, 3999], [9900, 9999]]},
+    "Autos": {
+        "name": "Automobiles and Trucks",
+        "ranges": [[2296, 2296], [2396, 2396], [3010, 3011], [3537, 3537],
+                   [3647, 3647], [3694, 3694], [3700, 3716], [3790, 3792], [3799, 3799]]
+    },
+    "Aero": {"name": "Aircraft", "ranges": [[3720, 3729]]},
+    "Ships": {"name": "Shipbuilding, Railroad Eq", "ranges": [[3730, 3731], [3740, 3743]]},
+    "Guns": {"name": "Defense", "ranges": [[3480, 3489], [3760, 3769], [3795, 3795]]},
+    "Gold": {"name": "Precious Metals", "ranges": [[1040, 1049]]},
+    "Mines": {"name": "Nonmetallic Mining", "ranges": [[1000, 1039], [1060, 1099], [1400, 1499]]},
+    "Coal": {"name": "Coal", "ranges": [[1200, 1299]]},
+    "Enrgy": {"name": "Petroleum and Natural Gas", "ranges": [[1310, 1389], [2900, 2911], [2990, 2999]]},
+    "Util": {"name": "Utilities", "ranges": [[4900, 4999]]},
+    "Telcm": {"name": "Telecommunications", "ranges": [[4800, 4899]]},
+    "PerSv": {
+        "name": "Personal Services",
+        "ranges": [[7020, 7021], [7030, 7039], [7200, 7212], [7215, 7299],
+                   [7395, 7395], [7500, 7500], [7520, 7549], [7600, 7699],
+                   [8100, 8199], [8200, 8299], [8300, 8399], [8400, 8499],
+                   [8600, 8699], [8800, 8899]]
+    },
+    "BusSv": {
+        "name": "Business Services",
+        "ranges": [[2750, 2759], [3993, 3993], [7300, 7372], [7374, 7394],
+                   [7397, 7397], [7399, 7399], [7510, 7519], [8700, 8748], [8900, 8999]]
+    },
+    "Comps": {"name": "Computers", "ranges": [[3570, 3579], [3680, 3689], [3695, 3695], [7373, 7373]]},
+    "Chips": {"name": "Electronic Equipment", "ranges": [[3622, 3622], [3661, 3679], [3810, 3810], [3812, 3812]]},
+    "LabEq": {"name": "Measuring and Control Equip", "ranges": [[3811, 3811], [3820, 3830]]},
+    "Paper": {"name": "Business Supplies", "ranges": [[2520, 2549], [2600, 2639], [2670, 2699], [2760, 2761], [3950, 3955]]},
+    "Boxes": {"name": "Shipping Containers", "ranges": [[2440, 2449], [2640, 2659], [3210, 3221], [3410, 3412]]},
+    "Trans": {"name": "Transportation", "ranges": [[4000, 4099], [4100, 4199], [4200, 4299], [4400, 4499], [4500, 4599], [4600, 4699], [4700, 4799]]},
+    "Whlsl": {"name": "Wholesale", "ranges": [[5000, 5099], [5100, 5199]]},
+    "Rtail": {"name": "Retail", "ranges": [[5200, 5299], [5300, 5399], [5400, 5499], [5500, 5599], [5600, 5699], [5700, 5736], [5900, 5999]]},
+    "Meals": {"name": "Restaurants, Hotel, Motel", "ranges": [[5800, 5813], [5890, 5890], [7000, 7019], [7040, 7049], [7213, 7213]]},
+    "Banks": {"name": "Banking", "ranges": [[6000, 6099], [6100, 6199]]},
+    "Insur": {"name": "Insurance", "ranges": [[6300, 6399], [6400, 6411]]},
+    "RlEst": {"name": "Real Estate", "ranges": [[6500, 6553]]},
+    "Fin":   {"name": "Trading", "ranges": [[6200, 6299], [6700, 6799]]}
+}
