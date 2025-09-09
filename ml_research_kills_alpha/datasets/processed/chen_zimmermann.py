@@ -7,11 +7,8 @@ import pandas as pd
 import numpy as np
 
 from ml_research_kills_alpha.datasets.processed.cleaner import Cleaner
-from ml_research_kills_alpha.support import START_DATE, END_DATE_2023
+from ml_research_kills_alpha.support import START_DATE
 import argparse
-
-
-DEFAULT_END_DATE = END_DATE_2023
 
 
 class ChenZimmermannCleaner(Cleaner):
@@ -23,7 +20,7 @@ class ChenZimmermannCleaner(Cleaner):
       - replace missing values with 0
       - write full-sample and post-2005 variants
     """
-    def __init__(self, end_date: str = DEFAULT_END_DATE):
+    def __init__(self, end_date):
         super().__init__(dataset_name="chen_zimmermann_signals")
         self.start_date = pd.to_datetime(START_DATE, format="%m/%d/%Y")
         self.end_date = pd.to_datetime(end_date, format="%m/%d/%Y")
@@ -57,23 +54,21 @@ class ChenZimmermannCleaner(Cleaner):
         # missing values replaced with 0
         df[feature_cols] = df[feature_cols].fillna(0.0)
 
-        # save full and post-2005 datasets
-        out_full, out_post = self._save_dataframe(df.sort_values(["date", "permno"]).reset_index(drop=True), f"{self.dataset_name}.csv")
+        # save full dataset
+        out_full = self._save_dataframe(df.sort_values(["date", "permno"]).reset_index(drop=True), f"{self.dataset_name}.csv")
 
         self.logger.info("Cleaned Chen & Zimmermann signals saved")
         self.logger.info(f"Full sample: {out_full}")
-        self.logger.info(f"Post-2005: {out_post}")
         return out_full
 
 
-def main(end_date: str = DEFAULT_END_DATE):
+def main(end_date: str):
     cleaner = ChenZimmermannCleaner(end_date=end_date)
     cleaner.clean()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Clean Chen & Zimmermann signals dataset.")
-    parser.add_argument("--end_date", type=str, default=DEFAULT_END_DATE,
-                        help=f"End date in MM/DD/YYYY format (default: {DEFAULT_END_DATE})")
+    parser.add_argument("--end_date", type=str, help=f"End date in MM/DD/YYYY format")
     args = parser.parse_args()
     main(end_date=args.end_date)

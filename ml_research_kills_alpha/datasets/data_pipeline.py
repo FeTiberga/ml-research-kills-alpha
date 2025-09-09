@@ -7,14 +7,13 @@ import json
 import sys
 
 import pandas as pd
-import numpy as np
 
-# --- Project config & helpers
 from ml_research_kills_alpha.config import RAW_DATA_DIR, INTERIM_DATA_DIR, PROCESSED_DATA_DIR
 from ml_research_kills_alpha.support import Logger, START_DATE, END_DATE_2023
-from ml_research_kills_alpha.datasets.data.useful_files import (
-    CZ_SIGNAL_DOC, FF_INDUSTRY_CLASSIFICATION, GW_PREDICTOR_DATA_2024
-)
+from ml_research_kills_alpha.datasets.useful_files import FF_INDUSTRY_CLASSIFICATION, GW_PREDICTOR_DATA_2024
+from ml_research_kills_alpha.datasets.raw import CRSPDownloader, ChenZimmermannDownloader
+from ml_research_kills_alpha.datasets.processed import CRSPCleaner, ChenZimmermannCleaner
+
 
 RAW_DIR = Path(RAW_DATA_DIR)
 INTERIM_DIR = Path(INTERIM_DATA_DIR)
@@ -22,71 +21,82 @@ PROCESSED_DIR = Path(PROCESSED_DATA_DIR)
 
 log = Logger()
 
-# --- Downloaders (raw)
-# CZ via openassetpricing
-from ml_research_kills_alpha.datasets.raw.chen_zimmermann import ChenZimmermannDownloader  # :contentReference[oaicite:0]{index=0}
-# CRSP via WRDS
-# (Your CRSP downloader happens to live in datasets/chen_zimmermann.py in the upload; import path below.)
-try:
-    from ml_research_kills_alpha.datasets.raw.crsp import CRSPDownloader  # expected location
-except Exception:
-    # fallback to the uploaded location (same class)
-    from ml_research_kills_alpha.datasets.chen_zimmermann import CRSPDownloader  # :contentReference[oaicite:1]{index=1}
-
-# --- Cleaners (interim)
-# CZ cleaner
-from ml_research_kills_alpha.datasets.processed.chen_zimmermann import ChenZimmermannCleaner  # :contentReference[oaicite:2]{index=2}
-# CRSP cleaner (your uploaded CRSP cleaner sits in a file named like chen_zimmermann.py; import it too)
-try:
-    from ml_research_kills_alpha.datasets.processed.crsp import CRSPCleaner  # expected location
-except Exception:
-    from ml_research_kills_alpha.datasets.processed.chen_zimmermann import CRSPCleaner  # :contentReference[oaicite:3]{index=3}
-
-
-# ---------- Utilities
-
-def _ensure_dirs():
-    RAW_DIR.mkdir(parents=True, exist_ok=True)
-    INTERIM_DIR.mkdir(parents=True, exist_ok=True)
-    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
-
 
 def file_exists(path: Path) -> bool:
     return path.exists() and path.stat().st_size > 0
 
 
-def _read_monthly_wg(baseline_path: Path) -> pd.DataFrame:
+def _ensure_date_col(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Load Welch & Goyal predictors (already curated monthly CSV in datasets/data).
-    Expected columns: date or yyyymm + (dp, ep, bm, ntis, tbl, tms, dfy, svar).
+    Ensure the dataframe has a 'date' column of datetime type.
+    If 'date' is missing but 'yyyymm' exists, convert 'yyyymm' to 'date'.
+    If both are missing, raise an error.
+    Date is always the first day of the month
     """
-    df = pd.read_csv(baseline_path)
-    # normalize date
     if "date" in df.columns:
-        df["date"] = pd.to_datetime(df["date"], errors="coerce")
-        df["date"] = (df["date"] + pd.offsets.MonthEnd(0)).astype("datetime64[ns]")
+        df["date"] = pd.to_datetime(df["date"])
     elif "yyyymm" in df.columns:
-        s = pd.to_numeric(df["yyyymm"], errors="coerce").astype("Int64")
-        df["date"] = pd.to_datetime(s.astype(str), format="%Y%m", errors="coerce")
-        df["date"] = (df["date"] + pd.offsets.MonthEnd(0)).astype("datetime64[ns]")
+        df["date"] = pd.to_datetime(df["yyyymm"].astype(str), format="%Y%m")
     else:
-        raise ValueError("Welch-Goyal file must contain date or yyyymm.")
-
-    keep = ["dp", "ep", "bm", "ntis", "tbl", "tms", "dfy", "svar"]
-    for c in keep:
-        if c not in df.columns:
-            df[c] = pd.NA
-    df = df[["date"] + keep].drop_duplicates(subset=["date"]).sort_values("date").reset_index(drop=True)
+        raise ValueError("DataFrame must have either 'date' or 'yyyymm' column.")
+    df["date"] = df["date"] + pd.offsets.MonthBegin(1) - pd.offsets.Day(1)
     return df
 
 
-def _load_ff49_mapper(json_path: Path):
+def _ensure_permno_int(s: pd.Series) -> pd.Series:
+    # force permno to be Int64 (nullable int)
+    int_s = pd.to_numeric(s, errors="coerce").astype("Int64")
+    return int_s
+
+
+def _read_monthly_wg() -> pd.DataFrame:
+    """
+    Load Welch & Goyal predictors.
+    Uses only the 8 main predictors:
+      - dividend-price ratio (D12)
+      - earnings-price ratio (E12)
+      - book-to-market ratio (b/m)
+      - net equity expansion (ntis)
+      - treasury-bill rate (tbl)
+      - term-spread (tms)
+      - default spread (dfy)
+      - stock variance (svar)
+    """
+    df = pd.read_csv(GW_PREDICTOR_DATA_2024)
+    df["date"] = pd.to_datetime(df["yyyymm"].astype(str), format="%Y%m")
+
+    # safety: create columns if missing
+    for c in ["D12","E12","b/m","tbl","lty","BAA","AAA","ntis","svar"]:
+        if c not in df.columns:
+            df[c] = pd.NA
+
+    df["tms"] = pd.to_numeric(df["lty"], errors="coerce") - pd.to_numeric(df["tbl"], errors="coerce")
+    df["dfy"] = pd.to_numeric(df["BAA"], errors="coerce") - pd.to_numeric(df["AAA"], errors="coerce")
+
+    result = pd.DataFrame({
+        "date": df["date"],
+        "dp":   pd.to_numeric(df["D12"], errors="coerce"),
+        "ep":   pd.to_numeric(df["E12"], errors="coerce"),
+        "bm":   pd.to_numeric(df["b/m"], errors="coerce"),
+        "ntis": pd.to_numeric(df["ntis"], errors="coerce"),
+        "tbl":  pd.to_numeric(df["tbl"], errors="coerce"),
+        "tms":  df["tms"],
+        "dfy":  df["dfy"],
+        "svar": pd.to_numeric(df["svar"], errors="coerce"),
+    }).drop_duplicates(subset=["date"]).sort_values("date").reset_index(drop=True)
+
+    return _ensure_date_col(result)
+
+
+def _load_ff49_mapper():
     """
     Returns a function that maps a SIC code (int) -> FF49 short industry key,
     based on your JSON ranges file.
     """
-    with open(json_path, "r") as f:
-        mapping = json.load(f)  # short_key -> {"name": ..., "ranges": [[a,b], ...]}
+    with open(FF_INDUSTRY_CLASSIFICATION, "r") as f:
+        mapping = json.load(f)
+        
+    # format is industry_key -> {"full name": ..., "ranges": [[a,b], ...]}
     # flatten into list of (short_key, low, high)
     rows = []
     for short, spec in mapping.items():
@@ -95,6 +105,7 @@ def _load_ff49_mapper(json_path: Path):
     table = pd.DataFrame(rows, columns=["short", "lo", "hi"])
 
     def map_sic(sic: float | int | None) -> str | None:
+        # return the short industry key for this SIC code, or None if no match
         if sic is None or pd.isna(sic):
             return None
         try:
@@ -110,158 +121,137 @@ def _load_ff49_mapper(json_path: Path):
     return map_sic
 
 
-def _one_hot_ff49(s: pd.Series, drop_first=True) -> pd.DataFrame:
+def _one_hot_ff49(s: pd.Series) -> pd.DataFrame:
     d = pd.get_dummies(s.astype("category"), prefix="ff49", dummy_na=False)
-    if drop_first and d.shape[1] > 0:
-        # Drop one to prevent multicollinearity (48 dummies)
-        d = d.iloc[:, 1:]
+    # dropping one to prevent multicollinearity (48 dummies)
+    d = d.iloc[:, 1:]
     return d
 
-
-# ---------- Steps
 
 def step_download_raw(force_raw: bool):
     """
     Download CZ & CRSP raw data if missing (or always if force_raw=True).
-    Outputs:
-      - RAW_DIR/chen_zimmermann_signals.csv
-      - RAW_DIR/crsp_stock.csv
+    Args:
+        force_raw: if True, redownload even if files exist
     """
-    _ensure_dirs()
     cz_raw = RAW_DIR / "chen_zimmermann_signals.csv"
     crsp_raw = RAW_DIR / "crsp_stock.csv"
 
     # CZ
     if force_raw or not file_exists(cz_raw):
-        log.info("Downloading Chen & Zimmermann raw signals...")
-        ChenZimmermannDownloader().download()  # :contentReference[oaicite:4]{index=4}
+        ChenZimmermannDownloader().download()
     else:
         log.info(f"Found CZ raw -> {cz_raw}, skipping (use --force-raw to refresh).")
 
     # CRSP
     if force_raw or not file_exists(crsp_raw):
-        log.info("Downloading CRSP raw data...")
-        CRSPDownloader().download()  # :contentReference[oaicite:5]{index=5}
+        CRSPDownloader().download()
     else:
         log.info(f"Found CRSP raw -> {crsp_raw}, skipping (use --force-raw to refresh).")
 
 
-def step_clean_interim(end_date: str = END_DATE_2023):
+def step_clean_interim(force_clean: bool, end_date: str):
     """
-    Run cleaners to produce interim datasets.
-    Outputs (by your cleaner base): full & post-2005 CSVs under INTERIM_DIR.
+    Clean CZ & CRSP raw data into interim files if missing (or always if force_clean=True).
+    Args:
+        force_clean: if True, re-clean even if files exist
+        end_date: end date for cleaning (MM/DD/YYYY)
     """
-    _ensure_dirs()
-    # CZ -> interim
-    log.info("Cleaning CZ signals into interim...")
-    ChenZimmermannCleaner(end_date=end_date).clean()  # :contentReference[oaicite:6]{index=6}
+    cz_interim = INTERIM_DIR / "chen_zimmermann_signals.csv"
+    crsp_interim = INTERIM_DIR / "crsp_stock.csv"
 
-    # CRSP -> interim
-    log.info("Cleaning CRSP stock into interim...")
-    CRSPCleaner(end_date=end_date).clean()  # :contentReference[oaicite:7]{index=7}
+    # CZ
+    if force_clean or not file_exists(cz_interim):
+        ChenZimmermannCleaner(end_date=end_date).clean()
+    else:
+        log.info(f"Found cleaned CZ -> {cz_interim}, skipping (use --force-clean to refresh).")
+
+    # CRSP
+    if force_clean or not file_exists(crsp_interim):
+        CRSPCleaner(end_date=end_date).clean()
+    else:
+        log.info(f"Found cleaned CRSP -> {crsp_interim}, skipping (use --force-clean to refresh).")
 
 
-def step_merge_processed(
-    ff_json_path: Path,
-    wg_path: Path,
-    out_name: str = "master_panel.csv",
-    drop_one_ff_dummy: bool = True,
-):
+def step_merge_processed() -> str:
     """
     Merge:
       - interim CZ features (by permno, date),
       - interim CRSP (by permno, date),
       - FF49 industry one-hots from SICCD,
       - WG predictors (by date).
-    Write processed/master_panel.csv (+ _post2005).
+    Write processed/master_panel.csv.        
     """
-    _ensure_dirs()
 
-    # ----- Load interim inputs
+    # load interim files
     cz_path = INTERIM_DIR / "chen_zimmermann_signals.csv"
     crsp_path = INTERIM_DIR / "crsp_stock.csv"
-
     if not file_exists(cz_path):
         raise FileNotFoundError(f"Missing interim CZ file: {cz_path}. Run cleaning first.")
     if not file_exists(crsp_path):
         raise FileNotFoundError(f"Missing interim CRSP file: {crsp_path}. Run cleaning first.")
 
     cz = pd.read_csv(cz_path, low_memory=False)
-    cr = pd.read_csv(crsp_path, low_memory=False)
+    crsp = pd.read_csv(crsp_path, low_memory=False)
 
-    for df in (cz, cr):
-        if "date" not in df.columns:
-            df["date"] = pd.to_datetime(df["yyyymm"].astype(str), format="%Y%m")
-        else:
-            df["date"] = pd.to_datetime(df["date"])
+    # ensure date and permno columns are in the same format
+    for df in [cz, crsp]:
+        df = _ensure_date_col(df)
+        df["permno"] = _ensure_permno_int(df["permno"])
+        df.dropna(subset=["permno", "date"], inplace=True)
 
-    # ----- Merge CZ + CRSP on (permno, date)
-    # inner join keeps common universe by date/permno
+    # merge CZ + CRSP on (permno, date)
     panel = pd.merge(
-        cz, cr,
+        crsp, cz,
         on=["permno", "date"],
-        how="inner",
-        suffixes=("", "_crsp")
+        how="left",
+        suffixes=("", "_cz")
     )
 
-    # ----- FF49 one-hot from SIC
-    # Prefer CRSP's siccd if present; otherwise use CZ's
-    sic = panel["siccd_crsp"] if "siccd_crsp" in panel.columns else panel.get("siccd", pd.Series(index=panel.index))
-    map_fn = _load_ff49_mapper(Path(ff_json_path))  # :contentReference[oaicite:8]{index=8}
+    # add one-hot FF49 industry dummies from SICCD
+    sic = panel["siccd"]
+    map_fn = _load_ff49_mapper()
     panel["ff49_short"] = sic.map(map_fn)
-
-    ff_dummies = _one_hot_ff49(panel["ff49_short"], drop_first=drop_one_ff_dummy)
+    ff_dummies = _one_hot_ff49(panel["ff49_short"])
     panel = pd.concat([panel, ff_dummies], axis=1)
 
-    # ----- Add monthly WG predictors by date
-    wg = _read_monthly_wg(Path(wg_path))  # uses curated CSV in datasets/data
+    # add WG predictors by date
+    wg = _read_monthly_wg()
     panel = pd.merge(panel, wg, on="date", how="left")
+    
+    # make sure data is past START_DATE
+    panel = panel[panel["date"] >= pd.to_datetime(START_DATE)]
 
-    # ----- Final ordering & write
+    # final ordering
+    out_name = "master_panel.csv"
     panel = panel.sort_values(["date", "permno"]).reset_index(drop=True)
     out_full = PROCESSED_DIR / out_name
     panel.to_csv(out_full, index=False)
     log.info(f"Wrote processed panel -> {out_full}")
 
-    # Post-2005 convenience slice (mirrors your Cleaner convention)  :contentReference[oaicite:9]{index=9}
-    post2005 = panel[panel["date"] >= pd.Timestamp("2005-01-01")]
-    out_post = PROCESSED_DIR / out_name.replace(".csv", "_post2005.csv")
-    post2005.to_csv(out_post, index=False)
-    log.info(f"Wrote processed post-2005 -> {out_post}")
+    return out_full
 
-    return out_full, out_post
-
-
-# ---------- CLI
 
 def main():
     parser = argparse.ArgumentParser(description="End-to-end data pipeline: raw -> interim -> processed")
-    parser.add_argument("--force-raw", action="store_true", help="Redownload raw data even if files exist.")
+    parser.add_argument("--force-raw", action="store_true", default=False,
+                        help="Redownload raw data even if files exist. Default: False")
+    parser.add_argument("--force-clean", action="store_true", default=False,
+                        help="Re-clean interim data even if files exist. Default: False")
     parser.add_argument("--end-date", type=str, default=END_DATE_2023,
                         help=f"End date for cleaners (MM/DD/YYYY). Default: {END_DATE_2023}")
-    parser.add_argument("--wg-path", type=str, default=GW_PREDICTOR_DATA_2024,
-                        help="Path to curated Welch-Goyal monthly CSV (datasets/data).")
-    parser.add_argument("--ff49-json", type=str, default=FF_INDUSTRY_CLASSIFICATION,
-                        help="Path to Fama-French 49 mapping JSON (datasets/data).")
-    parser.add_argument("--out-name", type=str, default="master_panel.csv",
-                        help="Output processed filename.")
 
     args = parser.parse_args()
 
     log.info("=== STEP 1: RAW DOWNLOAD ===")
     step_download_raw(force_raw=args.force_raw)
 
-    log.info("=== STEP 2: CLEAN → INTERIM ===")
-    step_clean_interim(end_date=args.end_date)
+    log.info("=== STEP 2: CLEAN DATA ===")
+    step_clean_interim(force_clean=args.force_clean, end_date=args.end_date)
 
-    log.info("=== STEP 3: MERGE → PROCESSED ===")
-    step_merge_processed(
-        ff_json_path=Path(args.ff49_json),
-        wg_path=Path(args.wg_path),
-        out_name=args.out_name,
-        drop_one_ff_dummy=True,
-    )
+    log.info("=== STEP 3: MERGE DATA ===")
+    step_merge_processed()
+
 
 if __name__ == "__main__":
-    _ensure_dirs()
     sys.exit(main())

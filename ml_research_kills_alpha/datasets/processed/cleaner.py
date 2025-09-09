@@ -49,18 +49,9 @@ class Cleaner(ABC):
         filtered = df[(df["date"] >= start_date) & (df["date"] <= end_date)]
         return filtered
 
-    def _save_dataframe(self, df: pd.DataFrame, filename: str) -> tuple[Path, Path]:
+    def _save_dataframe(self, df: pd.DataFrame, filename: str) -> Path:
         # Save full cleaned dataset
         dest_full = self.interim_dir / filename
         df.to_csv(dest_full, index=False)
         self.logger.info(f"Saved clean file {self.dataset_name} -> {dest_full}")
-
-        # Save post-2005 version
-        if "date" in df.columns:
-            df_post_2005 = df[df["date"] >= pd.to_datetime(CUTOFF_2005, format="%m/%d/%Y")]
-            post_2005_filename = filename.replace(".csv", "_post2005.csv")
-            dest_post_2005 = self.interim_dir / post_2005_filename
-            df_post_2005.to_csv(dest_post_2005, index=False)
-            self.logger.info(f"Saved post-2005 file {self.dataset_name} -> {dest_post_2005}")
-
-        return dest_full, dest_post_2005
+        return dest_full

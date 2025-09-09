@@ -26,7 +26,7 @@ class CRSPDownloader(Downloader):
             crsp = conn.raw_sql(f"""
             SELECT m.permno, m.date, ABS(m.prc) AS prc, m.ret, 
                    m.retx, m.shrout, m.cfacpr, m.cfacshr, n.ticker,
-                   n.cusip, n.exchcd, n.shrcd, m.siccd
+                   n.cusip, n.exchcd, n.shrcd, n.siccd
             FROM crsp.msf AS m
             JOIN crsp.msenames AS n
             ON m.permno = n.permno

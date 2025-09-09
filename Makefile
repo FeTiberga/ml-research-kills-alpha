@@ -81,21 +81,27 @@ create_environment:
 #################################################################################
 
 
-## Make dataset
-.PHONY: raw_data
-raw_data:
-	@echo "Downloading Chen Zimmermann (2022) signals"
-	python -m ml_research_kills_alpha.datasets.raw.chen_zimmermann
-	@echo "Downloading CRSP stock data"
-	python -m ml_research_kills_alpha.datasets.raw.crsp_stock
+# Defaults
+END_DATE    ?=
+FORCE_RAW   ?=
+FORCE_CLEAN ?=
 
+# Compose CLI flags only if user sets them (no empty flags)
+DATA_FLAGS :=
+ifneq ($(strip $(END_DATE)),)
+	DATA_FLAGS += --end-date "$(END_DATE)"
+endif
+ifneq ($(strip $(FORCE_RAW)),)
+	DATA_FLAGS += --force-raw
+endif
+ifneq ($(strip $(FORCE_CLEAN)),)
+	DATA_FLAGS += --force-clean
+endif
 
-.PHONY: processed_data
-processed_data:
-	@echo "Processing Chen Zimmermann (2022) signals"
-	python -m ml_research_kills_alpha.datasets.processed.chen_zimmermann $(if $(end_date),--end_date $(end_date),)
-	@echo "Processing CRSP stock data"
-	python -m ml_research_kills_alpha.datasets.processed.crsp_stock $(if $(end_date),--end_date $(end_date),)
+.PHONY: data
+data:
+	@echo "Running data pipeline (END_DATE=$(END_DATE), FORCE_RAW=$(FORCE_RAW), FORCE_CLEAN=$(FORCE_CLEAN))"
+	python -m ml_research_kills_alpha.datasets.data_pipeline $(DATA_FLAGS)
 
 
 #################################################################################
