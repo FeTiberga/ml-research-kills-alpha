@@ -1,9 +1,9 @@
 import pandas as pd
-from ml_research_kills_alpha.modeling.elastic_net import ElasticNetModel
-from ml_research_kills_alpha.modeling.huber_ols import HuberRegressorModel
-from ml_research_kills_alpha.modeling.xgboost import XGBoostModel
-from ml_research_kills_alpha.modeling.neural_networks import FFNNModel
-from ml_research_kills_alpha.modeling.lstm import LSTMModel
+from ml_research_kills_alpha.modeling.algorithms.elastic_net import ElasticNetModel
+from ml_research_kills_alpha.modeling.algorithms.huber_ols import HuberRegressorModel
+from ml_research_kills_alpha.modeling.algorithms.xgboost import XGBoostModel
+from ml_research_kills_alpha.modeling.algorithms.neural_networks import FFNNModel
+from ml_research_kills_alpha.modeling.algorithms.lstm import LSTMModel
 from ml_research_kills_alpha.modeling.rolling_trainer import RollingTrainer
 
 # Load the cleaned data (panel format with 'year' column, firm features, macro predictors, and target)

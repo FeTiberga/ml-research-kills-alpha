@@ -7,20 +7,20 @@ import pandas as pd
 
 class Modeler(abc.ABC):
 
-    def __init__(self, name=None):
+    def __init__(self, name: str = None):
         self.name = name
 
     @abc.abstractmethod
     def train(self, X_train: pd.Series, y_train: pd.Series, 
-                    X_val: pd.Series = None, y_val: pd.Series = None):
+                    X_val: pd.Series, y_val: pd.Series):
         """
         Train the model on given training data, optionally using validation data for tuning.
         
         Args:
             X_train (pd.Series): Features for training.
             y_train (pd.Series): Target variable for training.
-            X_val (pd.Series): Optional features for validation.
-            y_val (pd.Series): Optional target variable for validation.
+            X_val (pd.Series): Features for validation.
+            y_val (pd.Series): Target variable for validation.
         """
         pass
 
@@ -34,6 +34,20 @@ class Modeler(abc.ABC):
             
         Returns:
             pd.Series: Predicted values.
+        """
+        pass
+    
+    @abc.abstractmethod
+    def evaluate(self, X: pd.Series, y: pd.Series) -> float:
+        """
+        Evaluate the model on the given input data and return a performance metric.
+        
+        Args:
+            X (pd.Series): Input features for prediction.
+            y (pd.Series): True target values for evaluation.
+            
+        Returns:
+            float: Performance metric (e.g., MAE, RMSE).
         """
         pass
 

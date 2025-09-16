@@ -1,13 +1,12 @@
 import os
 import json
-from ml_research_kills_alpha.modeling.base_model import Modeler
-from ml_research_kills_alpha.modeling.elastic_net import ElasticNetModel
-from ml_research_kills_alpha.modeling.huber_ols import HuberRegressorModel
-from ml_research_kills_alpha.modeling.xgboost import XGBoostModel
-from ml_research_kills_alpha.modeling.neural_networks import FFNNModel
-from ml_research_kills_alpha.modeling.lstm import LSTMModel
+from ml_research_kills_alpha.modeling.algorithms.base_model import Modeler
+from ml_research_kills_alpha.modeling.algorithms.elastic_net import ElasticNetModel
+from ml_research_kills_alpha.modeling.algorithms.huber_ols import HuberRegressorModel
+from ml_research_kills_alpha.modeling.algorithms.xgboost import XGBoostModel
+from ml_research_kills_alpha.modeling.algorithms.neural_networks import FFNNModel
+from ml_research_kills_alpha.modeling.algorithms.lstm import LSTMModel
 
-from .neural_networks import FFNNModel, LSTMModel
 
 class EnsembleModel(Modeler):
     """Ensemble model that averages predictions from multiple trained models (e.g., FFNNs and LSTMs)."""

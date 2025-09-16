@@ -1,6 +1,6 @@
 import pandas as pd
-from ml_research_kills_alpha.modeling.base_model import Modeler
-from ml_research_kills_alpha.modeling.ensemble import EnsembleModel
+from ml_research_kills_alpha.modeling.algorithms.base_model import Modeler
+from ml_research_kills_alpha.modeling.algorithms.ensemble import EnsembleModel
 
 class RollingTrainer:
     """Performs expanding-window training from start_year to end_year with a 6-year validation period before each test year."""
