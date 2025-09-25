@@ -18,11 +18,16 @@ class LSTMModel(Modeler):
         self.seq_length = seq_length
         self.nets: list['LSTMNet'] = []
         self.name = f"LSTM{num_layers}"
-        self.is_deep = True
+        self.is_deep = True  # flag to identify deep learning models for ensembling
+        self.fixed_parameters = False # flag to identify whether we fine-tune hyperparameters once or for each time window
+        
         if input_dim is not None and hidden_sizes is not None:
             for _ in range(5):
                 net = self._build_net()
                 self.nets.append(net)
+                
+    def get_subsample(self):
+        pass
 
     def _compute_hidden_sizes(self):
         # Geometric pyramid rule for LSTM hidden layer sizes

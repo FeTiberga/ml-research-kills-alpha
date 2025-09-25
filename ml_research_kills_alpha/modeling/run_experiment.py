@@ -1,7 +1,6 @@
 import pandas as pd
 from ml_research_kills_alpha.modeling.algorithms.elastic_net import ElasticNetModel
 from ml_research_kills_alpha.modeling.algorithms.huber_ols import HuberRegressorModel
-from ml_research_kills_alpha.modeling.algorithms.xgboost import XGBoostModel
 from ml_research_kills_alpha.modeling.algorithms.neural_networks import FFNNModel
 from ml_research_kills_alpha.modeling.algorithms.lstm import LSTMModel
 from ml_research_kills_alpha.modeling.rolling_trainer import RollingTrainer
@@ -13,7 +12,6 @@ data = pd.read_csv("cleaned_data.csv")  # Replace with the actual path to the cl
 models = [
     ElasticNetModel(),
     HuberRegressorModel(),
-    XGBoostModel(),
     FFNNModel(num_layers=2),
     FFNNModel(num_layers=3),
     FFNNModel(num_layers=4),

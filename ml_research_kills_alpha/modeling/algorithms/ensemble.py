@@ -1,9 +1,10 @@
 import os
 import json
+import numpy as np
+        
 from ml_research_kills_alpha.modeling.algorithms.base_model import Modeler
 from ml_research_kills_alpha.modeling.algorithms.elastic_net import ElasticNetModel
 from ml_research_kills_alpha.modeling.algorithms.huber_ols import HuberRegressorModel
-from ml_research_kills_alpha.modeling.algorithms.xgboost import XGBoostModel
 from ml_research_kills_alpha.modeling.algorithms.neural_networks import FFNNModel
 from ml_research_kills_alpha.modeling.algorithms.lstm import LSTMModel
 
@@ -15,6 +16,9 @@ class EnsembleModel(Modeler):
         self.name = "Ensemble"
         # If any sub-model is deep, mark ensemble as deep strategy
         self.is_deep = any(getattr(m, 'is_deep', False) for m in models_list)
+    
+    def get_subsample(self):
+        pass
 
     def train(self, X_train, y_train, X_val=None, y_val=None):
         # No training needed for ensemble (assumes sub-models are already trained)
@@ -29,6 +33,10 @@ class EnsembleModel(Modeler):
             preds_all.append(preds)
         preds_all = np.array(preds_all)
         return preds_all.mean(axis=0)
+    
+    def evaluate(self, X, y):
+        preds = self.predict(X)
+        return np.mean(np.abs(preds - y))
 
     def save(self, filepath):
         # Save each sub-model into the specified directory and record their class and file
@@ -54,7 +62,6 @@ class EnsembleModel(Modeler):
         class_map = {
             "ElasticNetModel": ElasticNetModel,
             "HuberRegressorModel": HuberRegressorModel,
-            "XGBoostModel": XGBoostModel,
             "FFNNModel": FFNNModel,
             "LSTMModel": LSTMModel,
             "EnsembleModel": cls
