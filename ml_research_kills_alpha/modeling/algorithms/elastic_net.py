@@ -1,4 +1,3 @@
-# ml_research_kills_alpha/modeling/elastic_net.py
 # Elastic Net regression model for return prediction
 
 import numpy as np
@@ -77,10 +76,9 @@ class ElasticNetModel(Modeler):
         preds = self.model.predict(X)
         self.logger.info(f"Generated predictions for {self.name}")
         return preds
-    
-    def evaluate(self, X, y):
-        preds = self.predict(X)
-        return np.mean(np.abs(preds - y))
+
+    def evaluate(self, y_true, y_pred):
+        return np.mean((y_pred - y_true) ** 2)
 
     def save(self, filepath):
         joblib.dump(self, filepath)

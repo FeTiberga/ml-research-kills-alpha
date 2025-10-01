@@ -33,10 +33,9 @@ class EnsembleModel(Modeler):
             preds_all.append(preds)
         preds_all = np.array(preds_all)
         return preds_all.mean(axis=0)
-    
-    def evaluate(self, X, y):
-        preds = self.predict(X)
-        return np.mean(np.abs(preds - y))
+
+    def evaluate(self, y_true, y_pred):
+        return np.mean((y_pred - y_true) ** 2)
 
     def save(self, filepath):
         # Save each sub-model into the specified directory and record their class and file

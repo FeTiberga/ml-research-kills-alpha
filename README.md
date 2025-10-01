@@ -50,29 +50,31 @@ We measure how much of the ML edge in predicting future stocks survives when acc
     │   │   ├── cz_signal_doc.py                  <- Description and publication date of Chen Zimmermann (2020) signals
     │   │   ├── ff_industry_classification.json   <- 49 industry classification indicators from Fama and French (1997)
     │   │   └── gw_predictor_data_2024            <- Data from Welch and Goyal (2008) up to December 2024
-    │   ├── processed                  <- Scripts to process and clean raw datasets
-    │   │   ├── clearer.py             <- Basic class to handle cleaning logic
-    │   │   ├── chen_zimmermann.py     <- Code to clean data from Chen Zimmermann (2020)
-    │   │   └── crsp.py                <- Code to clean CRSP stock data
-    │   ├── raw                        <- Scripts to download raw datasets
-    │   │   ├── download.py            <- Basic class to handle downloading logic
-    │   │   ├── chen_zimmermann.py     <- Code to download data from Chen Zimmermann (2020)
-    │   │   └── crsp.py                <- Code to download CRSP stock data
-    │   ├── data_pipeline.py           <- Code for full data processing pipeline
-    │   └── useful_files               <- Paths to useful files used in the data processing pipeline
+    │   ├── processed                             <- Scripts to process and clean raw datasets
+    │   │   ├── clearer.py                        <- Basic class to handle cleaning logic
+    │   │   ├── chen_zimmermann.py                <- Code to clean data from Chen Zimmermann (2020)
+    │   │   └── crsp.py                           <- Code to clean CRSP stock data
+    │   ├── raw                                   <- Scripts to download raw datasets
+    │   │   ├── download.py                       <- Basic class to handle downloading logic
+    │   │   ├── chen_zimmermann.py                <- Code to download data from Chen Zimmermann (2020)
+    │   │   └── crsp.py                           <- Code to download CRSP stock data
+    │   ├── data_pipeline.py                      <- Code for full data processing pipeline
+    │   └── useful_files                          <- Paths to useful files used in the data processing pipeline
     │    
     ├── features.py                <- Code to create features for modeling
     │   
-    ├── modeling                       <- Scripts to handle ML models
-    │   ├── base_model.py              <- defines Modeler base class
-    │   ├── elastic_net.py             <- defines ElasticNetModel
-    │   ├── ensemble.py                <- defines EnsembleModel
-    │   ├── huber_ols.py               <- defines HuberRegressorModel
-    │   ├── lstm.py                    <- defines LSTMModel
-    │   ├── neural_networks.py         <- defines FFNNModel
+    ├── modeling                           <- Scripts to handle ML models
+    │   ├── algorithms                     <- folder with machine learning algorithms
+    │   │   ├── base_model.py              <- defines Modeler base class
+    │   │   ├── elastic_net.py             <- defines ElasticNetModel
+    │   │   ├── ensemble.py                <- defines EnsembleModel
+    │   │   ├── huber_ols.py               <- defines HuberRegressorModel
+    │   │   ├── lstm.py                    <- defines LSTMModel
+    │   │   └── neural_networks.py         <- defines FFNNModel
+    │   ├── portfolio                      <- folder with portfolio building logic
+    │   │   ├── helpers.py                 <- helper functions
     │   ├── rolling_trainer.py         
-    │   ├── run_experiments.py         
-    │   └── xgboost.py                 <- defines XGBoostModel
+    │   └── run_experiments.py         
     │   
     ├── support                        <- support files
     │   ├── __init__.py

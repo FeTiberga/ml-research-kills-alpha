@@ -219,9 +219,8 @@ class FFNNModel(Modeler):
         self.logger.info(f"Generated predictions for {self.name}")
         return preds_mean
     
-    def evaluate(self, X, y):
-        preds = self.predict(X)
-        return np.mean(np.abs(preds - y))
+    def evaluate(self, y_true, y_pred):
+        return np.mean((y_pred - y_true) ** 2)
 
     def save(self, filepath):
         # Save model configuration and state

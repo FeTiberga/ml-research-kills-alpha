@@ -128,6 +128,9 @@ class LSTMModel(Modeler):
                 preds_list.append(pred)
         preds_mean = np.mean(preds_list, axis=0)
         return preds_mean
+    
+    def evaluate(self, y_true, y_pred):
+        return np.mean((y_pred - y_true) ** 2)
 
     def save(self, filepath):
         data = {

@@ -80,12 +80,8 @@ class HuberRegressorModel(Modeler):
         self.logger.info(f"Generated predictions for {self.name}")
         return a
     
-    def evaluate(self, X, y):
-        # return huber loss on given data
-        preds = self.predict(X)
-        residual = preds - y
-        is_small_error = np.abs(residual) <= self.epsilon
-        return np.mean(np.where(is_small_error, 0.5 * residual**2, self.epsilon * (np.abs(residual) - 0.5 * self.epsilon)))
+    def evaluate(self, y_true, y_pred):
+        return np.mean((y_pred - y_true) ** 2)
 
     def save(self, filepath: str):
         joblib.dump(self, filepath)

@@ -3,7 +3,7 @@ import numpy as np
 from ml_research_kills_alpha.modeling.algorithms.base_model import Modeler
 from ml_research_kills_alpha.modeling.algorithms.ensemble import EnsembleModel
 from ml_research_kills_alpha.datasets.useful_files import CZ_SIGNAL_DOC
-from ml_research_kills_alpha.support.constants import NON_FEATURES, PREDICTED_COL
+from ml_research_kills_alpha.support.constants import NON_FEATURES, PREDICTED_COL, META_COLS
 from ml_research_kills_alpha.support import Logger
 
 VALIDATION_PERIOD = 6
@@ -55,10 +55,11 @@ class RollingTrainer:
         all_features = CZ_DF[CZ_FEATURE_COLUMN].tolist()
         # only consider features that are in the data
         valid_features = [f for f in valid_features if f in self.data.columns]
+        meta_cols = [col for col in META_COLS if col in self.data.columns]
         total_features = len([col for col in all_features if col in self.data.columns])
         self.logger.info(f"Year {year}: Using {len(valid_features)} valid features out of {total_features} total features.")
-        return self.data[valid_features + [self.year_col] + [self.target_col]]
-    
+        return self.data[valid_features + meta_cols + [self.year_col, self.target_col]]
+
     def train_val_test_split(self, year: int) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
         Split data into training, validation, and test sets based on the given year.
@@ -85,15 +86,15 @@ class RollingTrainer:
         self.logger.info(f"Year {year}: Train data from start to {train_end_year}, Validation data from {val_start_year} to {val_end_year}, Test data for {year}.")
         return train_data, val_data, test_data
     
-    @staticmethod
-    def get_x(df: pd.DataFrame) -> pd.Series:
+    def get_x(self, df: pd.DataFrame) -> pd.Series:
         """
         Get the feature matrix X by excluding non-feature columns.
 
         Returns:
             pd.Series: Feature matrix.
-        """
-        features = [col for col in df.columns if col not in NON_FEATURES + [PREDICTED_COL]]
+        """ 
+        exclude = set(NON_FEATURES) | set(META_COLS) | set(PREDICTED_COL) | {self.target_col}
+        features = [col for col in df.columns if col not in exclude]
         return df[features]
 
     def get_y(self, df: pd.DataFrame) -> pd.Series:
@@ -104,37 +105,111 @@ class RollingTrainer:
             pd.Series: Target vector.
         """
         return df[self.target_col]
+    
+    def run_model(self, model: Modeler,
+                  X_train: pd.Series, y_train: pd.Series,
+                  X_val: pd.Series, y_val: pd.Series,
+                  year: int, test_sorted: pd.DataFrame,
+                  months: pd.Series, preds_all: list,
+                  train: bool = True) -> tuple[float, list]:
+        """
+        Train and evaluate a single model for a specific year.
+        
+        Args:
+            model (Modeler): the model to train and evaluate.
+            X_train (pd.Series): training features.
+            y_train (pd.Series): training target.
+            X_val (pd.Series): validation features.
+            y_val (pd.Series): validation target.
+            year (int): the test year.
+            test_sorted (pd.DataFrame): sorted test data for evaluation.
+            months (pd.Series): unique months in the test data.
+            preds_all (list): list to append predictions to.
+            train (bool): whether to train the model or not - for ensembles is False.
+        """
+        if train:
+            self.logger.info(f"Training model: {model.name} for year {year}")
+            model.train(X_train, y_train, X_val, y_val)
+        else:   
+            self.logger.info(f"Using pre-trained model: {model.name} for year {year}")
+
+        monthly_losses = []
+
+        for i in range(1, len(months)):
+            self.logger.info(f"Evaluating model: {model.name} for year {year}, month {months[i]}")
+            prev_month = months[i - 1] 
+            curr_month = months[i]
+            prev_df: pd.DataFrame = test_sorted[test_sorted['formation_month'] == prev_month].copy()
+            curr_df: pd.DataFrame = test_sorted[test_sorted['formation_month'] == curr_month].copy()
+
+            if prev_df.empty or curr_df.empty:
+                continue
+
+            # drop formation_month column
+            prev_df = prev_df.drop(columns=['formation_month'])
+            curr_df = curr_df.drop(columns=['formation_month'])
+
+            # Predict on prev cross-section
+            yhat = model.predict(self.get_x(prev_df))
+            prev_preds = prev_df[['permno', self.year_col]].copy()
+            prev_preds['y_hat'] = np.asarray(yhat)
+            prev_preds['model'] = model.name
+            # mark formation month as the 'date' you'll use for portfolio formation
+            prev_preds['date'] = prev_preds[self.year_col].dt.to_period('M')
+            
+            preds_all.append(prev_preds[['permno','date','model','y_hat']])
+
+            # Proper loss: align by permno intersection
+            merged = curr_df[['permno', self.target_col]].merge(
+                prev_preds[['permno','y_hat']], on='permno', how='inner'
+            )
+            if not merged.empty:
+                loss = model.evaluate(merged[self.target_col].values, merged['y_hat'].values)
+                monthly_losses.append(loss)
+                
+        return np.mean(monthly_losses) if monthly_losses else None, preds_all
 
     def run(self):
+        """
+        Run the rolling training process.
+        
+        Returns:
+            preds_all (pd.DataFrame): DataFrame containing predictions for each model and year.
+            results (dict): Dictionary containing evaluation metrics for each model and year.
+        """
+        preds_all = []
         results = {}
+        
         for year in range(self.start_year, self.end_year + 1):
             self.logger.info(f"Training models for test year {year}...")
 
             # Split data into training, validation, and test sets
             train_data, val_data, test_data = self.train_val_test_split(year)
-            
-            # prepare data for modeling
+
+            # Prepare data for modeling
             X_train = self.get_x(train_data)
             y_train = self.get_y(train_data)
             X_val = self.get_x(val_data)
             y_val = self.get_y(val_data)
-            X_test = self.get_x(test_data)
-            y_test = self.get_y(test_data)
+            
+            test_sorted = test_data.sort_values(self.year_col)
+            months = test_sorted[self.year_col].dt.to_period('M').unique()
+            test_sorted['formation_month'] = test_sorted[self.year_col].dt.to_period('M')
+
             results[year] = {}
 
-            # Train each model and record test set predictions
+            # Train each model
             for model in self.models:
-                self.logger.info(f"Training model: {model.name} for year {year}")
-                model.train(X_train, y_train, X_val, y_val)
-                loss = model.evaluate(X_test, y_test)
-                results[year][model.name] = loss
-    
+                avg_loss, preds_all = self.run_model(model, X_train, y_train, X_val, y_val, year, test_sorted, months, preds_all)
+                results.setdefault(year, {})[model.name] = avg_loss
+
             # Ensemble of all deep learning models (FFNNs and LSTMs)
             deep_models = [m for m in self.models if getattr(m, 'is_deep', False)]
             if deep_models:
-                self.logger.info(f"Evaluating ensemble of deep models for year {year}")
                 ensemble_model = EnsembleModel(deep_models)
-                ensemble_loss = ensemble_model.evaluate(X_test, y_test)
-                results[year][ensemble_model.name] = ensemble_loss
+                avg_loss, preds_all = self.run_model(ensemble_model, X_train, y_train, X_val, y_val, year, test_sorted, months, preds_all,
+                                                     train=False)
+                results[year]['Ensemble'] = avg_loss
 
-        return results
+        preds_all = pd.concat(preds_all, axis=0).reset_index(drop=True)
+        return preds_all, results

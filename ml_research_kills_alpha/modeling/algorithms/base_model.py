@@ -63,18 +63,20 @@ class Modeler(abc.ABC):
         pass
     
     @abc.abstractmethod
-    def evaluate(self, X: pd.Series, y: pd.Series) -> float:
+    def evaluate(self, y_true: pd.Series, y_pred: pd.Series) -> float:
         """
         Evaluate the model on the given input data and return a performance metric.
         
         Args:
-            X (pd.Series): Input features for prediction.
-            y (pd.Series): True target values for evaluation.
-            
+            y_true (pd.Series): True target values for evaluation.
+            y_pred (pd.Series): Predicted values for evaluation.
+
         Returns:
             float: Performance metric (e.g., MAE, RMSE).
         """
         pass
+    
+
 
     @abc.abstractmethod
     def save(self, filepath: str):
