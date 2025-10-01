@@ -8,6 +8,7 @@ from ml_research_kills_alpha.support import Logger
 ID_COLS   = {'permno','date'}
 META_COLS = {'ret','tbl','prc','shrout','Size','exchcd','shrcd','eff_half_spread'}
 RESERVED  = ID_COLS | META_COLS | {'y_hat','rx_fwd','ret_fwd','rf','mcap','yyyymm'}
+COST_COL = 'BidAskSpread'
 
 
 class Portfolio():
@@ -46,10 +47,10 @@ class Portfolio():
                 raise ValueError("Need 'prc' & 'shrout' or 'Size' (or precomputed 'me') for weights.")
 
         # Costs column default
-        if 'BidAskSpread' not in self.panel.columns:
-            self.panel['BidAskSpread'] = 0.0  # you can merge real Chen–Velikov later
+        if COST_COL not in self.panel.columns:
+            self.panel[COST_COL] = 0.0  # you can merge real Chen–Velikov later
 
-        self.panel = self.panel[['permno', 'date', self.target_column, 'me', 'BidAskSpread']]
+        self.panel = self.panel[['permno', 'date', self.target_column, 'me', COST_COL]]
         self.logger.info(f" Final shape: {self.panel.shape}")
         return self.panel
 
@@ -65,17 +66,27 @@ class Portfolio():
         df.rename(columns={'y_hat': f'y_hat_{model_name}'}, inplace=True)
         return df.sort_values(['date','permno'])
 
-    def assign_deciles(self, panel: pd.DataFrame, model_name: str) -> pd.DataFrame:
+    def assign_deciles(self, month_df: pd.DataFrame, model_name: str) -> pd.DataFrame:
         """
         Assign deciles to the predictions of the specified model.
         """
         self.logger.info("Assigning deciles based on model predictions")
-        qs = panel.quantile([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]).values
-        edges = np.concatenate(([-np.inf], qs, [np.inf]))
-        panel = panel.copy()
-        panel['decile'] = pd.cut(panel[f'y_hat_{model_name}'], bins=edges, labels=np.arange(1, 11), include_lowest=True).astype(int)
-        return panel
-    
+        
+        # Ensure the model's prediction column exists
+        prediction_col = f'y_hat_{model_name}'
+        if prediction_col not in month_df.columns:
+            self.logger.error(f"Predictions for model '{model_name}' not found in DataFrame.")
+            raise ValueError(f"Predictions for model '{model_name}' not found in DataFrame.")
+        
+        df = month_df.copy()
+        series = df[prediction_col].dropna()
+
+        deciles = np.arange(0.1, 1.0, 0.1)
+        cutpoint = series.quantile(deciles).values
+        edges = np.concatenate(([-np.inf], cutpoint, [np.inf]))
+        df['decile'] = pd.cut(df[prediction_col], bins=edges, labels=np.arange(1, 11), include_lowest=True).astype(int)
+        return df
+
     @staticmethod
     def value_weights(me: pd.Series) -> pd.Series:
         """
@@ -93,6 +104,14 @@ class Portfolio():
         me = pd.to_numeric(me, errors="coerce").fillna(0.0).clip(lower=0.0)
         s = me.sum()
         return (me / s) if s > 0 else me*0
+    
+    def realized_returns_for_month(self, panel: pd.DataFrame, date_period: pd.Period) -> pd.Series:
+        """
+        Get realized simple returns for a specific month.
+        """
+        month_slice = panel[panel['date'] == date_period][['permno', self.target_column]].copy()
+        by_permno = month_slice.set_index('permno')[self.target_column]
+        return pd.to_numeric(by_permno, errors='coerce').fillna(0.0)
 
     def target_weights_month(self, month_df: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
         """
@@ -195,3 +214,113 @@ class Portfolio():
         trading_cost = float((trade_sizes * half_spread_aligned).sum())
 
         return two_sided_turnover, trading_cost
+
+    def backtest_decile_long_short(self, preds_merged: pd.DataFrame, model_name: str) -> pd.DataFrame:
+        """
+        Monthly decile long-short backtest on the panel.
+
+        Mechanics per formation month t (preds date == t-1 in your trainer, used for month t):
+        1) Assign deciles on f'y_hat_{model_name}' using current month cross-section.
+        2) Build target long/short legs (D10 / D1) by value weights (sum to +1 each leg).
+        3) Drift last month's holdings through realized returns of month t (pre-rebalance).
+        4) Two-sided turnover & trading cost at month t using one-way effective half-spread column.
+        5) Earn gross in month t+1 using target weights;
+                net = (gross_long - cost_long) - (gross_short - cost_short).
+
+        Args:
+            preds_merged: Output of merge_preds(). Must contain:
+                ['permno','date', self.target_column, 'me', COST_COL, f'y_hat_{model_name}'].
+            model_name: Name used to resolve f'y_hat_{model_name}'.
+
+        Returns:
+            DataFrame indexed by month-end date with:
+                ['gross_long','gross_short','gross_ls',
+                'turnover_long','turnover_short','cost_long','cost_short',
+                'net_ls','cum_gross_ls','cum_net_ls'].
+        """
+        results = []
+        previous_long_weights: pd.Series | None = None
+        previous_short_weights: pd.Series | None = None
+
+        # We assume preds_merged is already NYSE-only & cleaned.
+        preds_merged = preds_merged.sort_values(['date','permno'])
+
+        for formation_month, month_df in preds_merged.groupby('date', sort=True):
+            # 1) Sort into deciles
+            month_df = self.assign_deciles(month_df, model_name=model_name)
+
+            # 2) Target leg weights at formation t
+            long_target_weights, short_target_weights = self.target_weights_month(month_df)
+
+            # 3) Drift prior holdings through returns of month t (pre-rebalance)
+            returns_t = self.realized_returns_for_month(self.panel, formation_month, self.target_column)
+            long_pre = self.drift(previous_long_weights, returns_t)
+            short_pre = self.drift(previous_short_weights, returns_t)
+
+            # 4) Turnover & trading costs using effective half-spread at month t
+            half_spread_t = month_df.set_index('permno')[COST_COL]
+            long_to, long_cost = self.turnover_and_cost(long_target_weights, long_pre, half_spread_t)
+            short_to, short_cost = self.turnover_and_cost(short_target_weights, short_pre, half_spread_t)
+
+            # 5) Gross return in month t+1 (payoff month)
+            payoff_month = formation_month + 1
+            returns_t1 = self.realized_returns_for_month(self.panel, payoff_month, self.target_column)
+
+            gross_long = (long_target_weights * returns_t1.reindex(long_target_weights.index).fillna(0.0)).sum()
+            gross_short = (short_target_weights * returns_t1.reindex(short_target_weights.index).fillna(0.0)).sum()
+            gross_ls = gross_long - gross_short
+            net_ls = (gross_long - long_cost) - (gross_short - short_cost)
+
+            results.append({
+                'date': formation_month.to_timestamp('M'),
+                'gross_long': gross_long,
+                'gross_short': gross_short,
+                'gross_ls': gross_ls,
+                'turnover_long': long_to,
+                'turnover_short': short_to,
+                'cost_long': long_cost,
+                'cost_short': short_cost,
+                'net_ls': net_ls,
+            })
+
+            previous_long_weights = long_target_weights
+            previous_short_weights = short_target_weights
+
+        res = pd.DataFrame(results).set_index('date').sort_index()
+        res['cum_gross_ls'] = (1.0 + res['gross_ls']).cumprod()
+        res['cum_net_ls']   = (1.0 + res['net_ls']).cumprod()
+        return res
+    
+    @staticmethod
+    def summarize_backtest(monthly_results: pd.DataFrame) -> dict:
+        """
+        Summarize monthly long-short results.
+
+        Args:
+            monthly_results: Output from backtest_decile_long_short().
+
+        Returns:
+            Dict with mean %, t-stats, annualized Sharpe, avg turnover/costs, and N months.
+        """
+        def ann_sharpe(x: pd.Series) -> float:
+            mu, sd = x.mean(), x.std(ddof=1)
+            return float((mu/sd)*np.sqrt(12.0)) if sd > 0 else np.nan
+
+        def tstat(x: pd.Series) -> float:
+            mu, sd, n = x.mean(), x.std(ddof=1), len(x)
+            return float(mu/(sd/np.sqrt(n))) if sd > 0 else np.nan
+
+        res = monthly_results
+        return {
+            'avg_gross_%': 100.0 * res['gross_ls'].mean(),
+            'tstat_gross': tstat(res['gross_ls']),
+            'sharpe_gross': ann_sharpe(res['gross_ls']),
+            'avg_net_%': 100.0 * res['net_ls'].mean(),
+            'tstat_net': tstat(res['net_ls']),
+            'sharpe_net': ann_sharpe(res['net_ls']),
+            'avg_turnover_long_%': 100.0 * res['turnover_long'].mean(),
+            'avg_turnover_short_%': 100.0 * res['turnover_short'].mean(),
+            'avg_cost_long_bp': 1e4 * res['cost_long'].mean(),
+            'avg_cost_short_bp': 1e4 * res['cost_short'].mean(),
+            'N_months': len(res),
+        }
