@@ -77,7 +77,6 @@ class HuberRegressorModel(Modeler):
 
     def predict(self, X: pd.Series) -> np.ndarray:
         a = self.model.predict(X)
-        self.logger.info(f"Generated predictions for {self.name}")
         return a
     
     def evaluate(self, y_true, y_pred):

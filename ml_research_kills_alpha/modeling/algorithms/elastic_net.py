@@ -74,7 +74,6 @@ class ElasticNetModel(Modeler):
 
     def predict(self, X):
         preds = self.model.predict(X)
-        self.logger.info(f"Generated predictions for {self.name}")
         return preds
 
     def evaluate(self, y_true, y_pred):

@@ -71,9 +71,8 @@ We measure how much of the ML edge in predicting future stocks survives when acc
     │   │   ├── huber_ols.py               <- defines HuberRegressorModel
     │   │   ├── lstm.py                    <- defines LSTMModel
     │   │   └── neural_networks.py         <- defines FFNNModel
-    │   ├── portfolio                      <- folder with portfolio building logic
-    │   │   ├── helpers.py                 <- helper functions
-    │   ├── rolling_trainer.py         
+    │   ├── portfolio.py                   <- portfolio building class
+    │   ├── rolling_trainer.py             
     │   └── run_experiments.py         
     │   
     ├── support                        <- support files

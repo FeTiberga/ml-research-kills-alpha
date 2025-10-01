@@ -30,6 +30,7 @@ class RollingTrainer:
         """
         self.models = models
         self.data = data.copy()
+        
         self.start_year = START_YEAR
         self.end_year = end_year
         self.target_col = target_col
@@ -37,11 +38,26 @@ class RollingTrainer:
         
         self.logger = Logger()
         self.logger.info(f"RollingTrainer initialized for years {self.start_year} to {self.end_year} with target column: '{self.target_col}'")
-
-        # Ensure 'date' column exists in data for slicing
-        if self.year_col not in self.data.columns:
-            self.logger.error(f"Data must contain a '{self.year_col}' column for time-based slicing.")
-            raise ValueError(f"Data must contain a '{self.year_col}' column for time-based slicing.")
+        
+        self.prepare_data()
+        
+    def prepare_data(self):
+        """
+        Prepare the data by ensuring correct dtypes and adding necessary columns.
+        """
+        self.logger.info(" ")
+        self.logger.info(f"Preparing data, original shape: {self.data.shape}")
+        
+        # Ensure 'date' is datetime
+        self.data[self.year_col] = pd.to_datetime(self.data[self.year_col])
+        if self.target_col not in self.data.columns:
+            self.logger.error(f"Target column '{self.target_col}' not found in data.")
+            raise ValueError(f"Target column '{self.target_col}' not found in data.")
+    
+        # drop rows with NaN in target column
+        self.data = self.data.dropna(subset=[self.target_col])
+        self.data = self.data.sort_values(by=[self.year_col, 'permno']).reset_index(drop=True)
+        self.logger.info(f"Data preparation complete. Data shape: {self.data.shape}")
 
     def filter_features(self, year: int) -> pd.DataFrame:
         """
@@ -127,6 +143,7 @@ class RollingTrainer:
             preds_all (list): list to append predictions to.
             train (bool): whether to train the model or not - for ensembles is False.
         """
+        self.logger.info(" ")
         if train:
             self.logger.info(f"Training model: {model.name} for year {year}")
             model.train(X_train, y_train, X_val, y_val)

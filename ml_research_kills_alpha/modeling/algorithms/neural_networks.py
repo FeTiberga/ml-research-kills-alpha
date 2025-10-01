@@ -216,7 +216,6 @@ class FFNNModel(Modeler):
                 pred = net(X_tensor).squeeze(-1).numpy()
                 preds_list.append(pred)
         preds_mean = np.mean(preds_list, axis=0)
-        self.logger.info(f"Generated predictions for {self.name}")
         return preds_mean
     
     def evaluate(self, y_true, y_pred):
