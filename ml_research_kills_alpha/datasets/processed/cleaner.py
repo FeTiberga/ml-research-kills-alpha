@@ -18,12 +18,13 @@ class Cleaner(ABC):
     Base class for all dataset cleaners.
     Defines common interface and utilities (logging, paths).
     """
-    def __init__(self, dataset_name: str):
+    def __init__(self, dataset_name: str, dataset: pd.DataFrame | None = None):
         self.logger = Logger()
         self.dataset_name = dataset_name
         self.interim_dir = INTERIM_DIR
         self.raw_dir = RAW_DIR
-        
+        self.dataset = dataset
+
         # cleaning comes only after downloading
         if not self.raw_dir.exists():
             self.logger.error(f"Raw directory {self.raw_dir} does not exist.")

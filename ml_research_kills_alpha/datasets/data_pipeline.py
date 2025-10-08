@@ -128,7 +128,7 @@ def _one_hot_ff49(s: pd.Series) -> pd.DataFrame:
     return d
 
 
-def step_download_raw(force_raw: bool):
+def step_download_raw(force_raw: bool) -> tuple[pd.DataFrame | None, pd.DataFrame | None]:
     """
     Download CZ & CRSP raw data if missing (or always if force_raw=True).
     Args:
@@ -136,21 +136,29 @@ def step_download_raw(force_raw: bool):
     """
     cz_raw = RAW_DIR / "chen_zimmermann_signals.csv"
     crsp_raw = RAW_DIR / "crsp_stock.csv"
+    
+    cz_df = None
+    crsp_df = None
 
     # CZ
     if force_raw or not file_exists(cz_raw):
-        ChenZimmermannDownloader().download()
+        cz_df = ChenZimmermannDownloader().download()
     else:
         log.info(f"Found CZ raw -> {cz_raw}, skipping (use --force-raw to refresh).")
 
     # CRSP
     if force_raw or not file_exists(crsp_raw):
-        CRSPDownloader().download()
+        crsp_df = CRSPDownloader().download()
     else:
         log.info(f"Found CRSP raw -> {crsp_raw}, skipping (use --force-raw to refresh).")
+        
+    return cz_df, crsp_df
+    
 
 
-def step_clean_interim(force_clean: bool, end_date: str):
+def step_clean_interim(force_clean: bool, end_date: str,
+                       cz_df: pd.DataFrame | None = None,
+                       crsp_df: pd.DataFrame | None = None) -> tuple[pd.DataFrame | None, pd.DataFrame | None]:
     """
     Clean CZ & CRSP raw data into interim files if missing (or always if force_clean=True).
     Args:
@@ -162,18 +170,20 @@ def step_clean_interim(force_clean: bool, end_date: str):
 
     # CZ
     if force_clean or not file_exists(cz_interim):
-        ChenZimmermannCleaner(end_date=end_date).clean()
+        cz_df = ChenZimmermannCleaner(end_date=end_date, dataset=cz_df).clean()
     else:
         log.info(f"Found cleaned CZ -> {cz_interim}, skipping (use --force-clean to refresh).")
 
     # CRSP
     if force_clean or not file_exists(crsp_interim):
-        CRSPCleaner(end_date=end_date).clean()
+        crsp_df = CRSPCleaner(end_date=end_date, dataset=crsp_df).clean()
     else:
         log.info(f"Found cleaned CRSP -> {crsp_interim}, skipping (use --force-clean to refresh).")
+        
+    return cz_df, crsp_df
 
 
-def step_merge_processed() -> str:
+def step_merge_processed(cz_df: pd.DataFrame | None, crsp_df: pd.DataFrame | None) -> str:
     """
     Merge:
       - interim CZ features (by permno, date),
@@ -191,15 +201,17 @@ def step_merge_processed() -> str:
     if not file_exists(crsp_path):
         raise FileNotFoundError(f"Missing interim CRSP file: {crsp_path}. Run cleaning first.")
 
-    cz = pd.read_csv(cz_path, low_memory=False)
-    crsp = pd.read_csv(crsp_path, low_memory=False)
+    cz = cz_df if cz_df is not None else pd.read_csv(cz_path)
+    crsp = crsp_df if crsp_df is not None else pd.read_csv(crsp_path, low_memory=False)
 
     # ensure date and permno columns are in the same format
     for df in [cz, crsp]:
         df = _ensure_date_col(df)
         df["permno"] = _ensure_permno_int(df["permno"])
         df.dropna(subset=["permno", "date"], inplace=True)
-
+    log.info(f"CZ data: {cz.shape[0]} rows, {cz.shape[1]} columns")
+    log.info(f"CRSP data: {crsp.shape[0]} rows, {crsp.shape[1]} columns")
+    
     # merge CZ + CRSP on (permno, date)
     panel = pd.merge(
         crsp, cz,
@@ -207,6 +219,7 @@ def step_merge_processed() -> str:
         how="left",
         suffixes=("", "_cz")
     )
+    log.info(f"Merged CZ + CRSP -> {panel.shape[0]} rows, {panel.shape[1]} columns")
 
     # add one-hot FF49 industry dummies from SICCD
     sic = panel["siccd"]
@@ -221,13 +234,24 @@ def step_merge_processed() -> str:
     
     # make sure data is past START_DATE
     panel = panel[panel["date"] >= pd.to_datetime(START_DATE)]
+    
+    # remove rows with no permno, ret, or retx
+    meta_missing_count = {col: panel[col].isna().sum() for col in ["permno", "ret", "retx"]}
+    for col, count in meta_missing_count.items():
+        log.info(f"Column {col} has {count} missing values, dropping those rows")
+    panel = panel.dropna(subset=["permno", "ret", "retx"])
 
     # final ordering
-    out_name = "master_panel.csv"
+    out_name = "master_panel.parquet"
     panel = panel.sort_values(["date", "permno"]).reset_index(drop=True)
     out_full = PROCESSED_DIR / out_name
-    panel.to_csv(out_full, index=False)
     log.info(f"Wrote processed panel -> {out_full}")
+    
+    # save head of panel for quick inspection
+    head_name = "master_panel_head.csv"
+    panel.to_parquet(out_full, index=False)
+    panel.head(100).to_csv(PROCESSED_DIR / head_name, index=False)
+    log.info(f"Wrote processed panel head (100 rows) -> {PROCESSED_DIR / head_name}")
 
     return out_full
 
@@ -244,13 +268,14 @@ def main():
     args = parser.parse_args()
 
     log.info("=== STEP 1: RAW DOWNLOAD ===")
-    step_download_raw(force_raw=args.force_raw)
+    cz_df, crsp_df = step_download_raw(force_raw=args.force_raw)
 
     log.info("=== STEP 2: CLEAN DATA ===")
-    step_clean_interim(force_clean=args.force_clean, end_date=args.end_date)
+    cz_df, crsp_df = step_clean_interim(force_clean=args.force_clean, end_date=args.end_date,
+                                        cz_df=cz_df, crsp_df=crsp_df)
 
     log.info("=== STEP 3: MERGE DATA ===")
-    step_merge_processed()
+    step_merge_processed(cz_df=cz_df, crsp_df=crsp_df)
 
 
 if __name__ == "__main__":

@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import pandas as pd
 import torch
@@ -131,6 +132,8 @@ class FFNNModel(Modeler):
         y_train = np.array(y_train)
         X_val = np.array(X_val)
         y_val = np.array(y_val)
+        
+        torch.set_num_threads(int(os.getenv("PYTORCH_NUM_THREADS", "32")))
         
         # ensure architecture matches the CURRENT year’s feature count
         self._rebuild_if_needed(X_train.shape[1])

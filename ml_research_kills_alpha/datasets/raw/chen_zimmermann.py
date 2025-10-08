@@ -38,7 +38,7 @@ class ChenZimmermannDownloader(Downloader):
         filename = f"chen_zimmermann_signals.csv"
         # Use the base-class helper to persist it
         out_path = self._save_dataframe(df, filename)
-        return out_path
+        return df
 
 
 def main():

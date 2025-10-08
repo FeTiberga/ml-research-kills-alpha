@@ -89,6 +89,13 @@ TARGET_COL  ?=
 TEST        ?=
 FORCE_ML    ?=
 
+# Sensible CPU-thread caps for BLAS/NumExpr/PyTorch inside each worker
+export OMP_NUM_THREADS      ?= 8
+export MKL_NUM_THREADS      ?= 8
+export OPENBLAS_NUM_THREADS ?= 8
+export NUMEXPR_NUM_THREADS  ?= 8
+export PYTORCH_NUM_THREADS  ?= 8
+
 # Compose CLI flags only if user sets them (no empty flags)
 DATA_FLAGS :=
 ifneq ($(strip $(END_DATE)),)
@@ -119,9 +126,17 @@ endif
 data:
 	@echo "Running data pipeline (END_DATE=$(END_DATE), FORCE_RAW=$(FORCE_RAW), FORCE_CLEAN=$(FORCE_CLEAN))"
 	python -m ml_research_kills_alpha.datasets.data_pipeline $(DATA_FLAGS)
+
+# 2) Train all models concurrently (writes predictions_*.csv shards)
+predictions-parallel:
+	YEAR=$(YEAR) TARGET=$(TARGET) python scripts/run_models_parallel.py
+
+# 3) Merge shards into one combined predictions.csv
+predictions-merge:
+	python -m ml_research_kills_alpha.prediction_pipeline --merge_shards True
 	
 .PHONY: prediction
-prediction:
+predictions: predictions-parallel predictions-merge
 	@echo "Running prediction pipeline (END_DATE=$(END_DATE), TARGET_COL=$(TARGET_COL), TEST=$(TEST), FORCE_ML=$(FORCE_ML))"
 	python -m ml_research_kills_alpha.modeling.prediction_pipeline $(PREDICTION_FLAGS)
 

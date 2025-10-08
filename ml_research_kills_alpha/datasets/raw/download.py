@@ -24,7 +24,7 @@ class Downloader(ABC):
         self.logger.info(f"Initialized downloader for {self.dataset_name} at {self.raw_dir}")
 
     @abstractmethod
-    def download(self) -> Path:
+    def download(self) -> pd.DataFrame:
         """Implement the logic to fetch and store raw data files."""
         pass
 

@@ -53,7 +53,7 @@ class CRSPDownloader(Downloader):
         # handle possible None end_date
         filename = f"crsp_stock.csv"
         out_path = self._save_dataframe(df, filename)
-        return out_path
+        return df
 
 
 def main():

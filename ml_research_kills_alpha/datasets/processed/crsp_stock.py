@@ -18,8 +18,8 @@ class CRSPCleaner(Cleaner):
       - consider data from START_DATE and end_date (parameter)
       - write full-sample and post-2005 variants
     """
-    def __init__(self, end_date: str):
-        super().__init__(dataset_name="crsp_stock")
+    def __init__(self, end_date: str, dataset: pd.DataFrame | None = None):
+        super().__init__(dataset_name="crsp_stock", dataset=dataset)
         self.start_date = pd.to_datetime(START_DATE, format="%m/%d/%Y")
         self.end_date = pd.to_datetime(end_date, format="%m/%d/%Y")
 
@@ -32,7 +32,10 @@ class CRSPCleaner(Cleaner):
             self.logger.error(f"Raw stock data file not found: {file_name}, run download file first")
             raise FileNotFoundError(f"Raw stock data file not found: {file_name}, run download file first")
 
-        df = pd.read_csv(file_name, low_memory=False)
+        if self.dataset is not None:
+            df = self.dataset
+        else:
+            df = pd.read_csv(file_name, low_memory=False)
         
         # time filtering
         df = self.filter_on_date(self.start_date, self.end_date, df)
@@ -45,8 +48,8 @@ class CRSPCleaner(Cleaner):
         return out_full
 
 
-def main(end_date: str):
-    cleaner = CRSPCleaner(end_date=end_date)
+def main(end_date: str, dataset: pd.DataFrame | None = None):
+    cleaner = CRSPCleaner(end_date=end_date, dataset=dataset)
     cleaner.clean()
 
 
