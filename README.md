@@ -18,8 +18,6 @@ We measure how much of the ML edge in predicting future stocks survives when acc
 │   ├── processed             <- The final, canonical data sets for modeling.
 │   └── raw                   <- The original, immutable data dump.
 │       
-├── docs                      <- A default mkdocs project; see www.mkdocs.org for details
-│       
 ├── models                    <- Trained and serialized models, model predictions, or model summaries
 │       
 ├── notebooks                 <- Jupyter notebooks. Naming convention is a number (for ordering),
@@ -31,8 +29,9 @@ We measure how much of the ML edge in predicting future stocks survives when acc
 │       
 ├── references                <- Data dictionaries, manuals, and all other explanatory materials.
 │       
-├── reports                   <- Generated analysis as HTML, PDF, LaTeX, etc.
-│   └── figures               <- Generated graphics and figures to be used in reporting
+├── reports                   <- Generated analysis for latex write-up.
+│   ├── sections              <- Sections of latex file
+│   └── figures               <- Generated graphics and figures to be used in latex file
 │       
 ├── requirements.txt          <- The requirements file for reproducing the analysis environment
 │       
@@ -80,6 +79,7 @@ We measure how much of the ML edge in predicting future stocks survives when acc
     │   ├── constants.py               <- common constants used in the project
     │   ├── logger.py                  <- script handling logging logic
     │   ├── wrds_connection.py         <- script handling connection to WRDS server
+    │   └── vm_connection.py           <- script handling connection to virtual machine
     │   
     └── plots.py                   <- Code to create visualizations
 ```

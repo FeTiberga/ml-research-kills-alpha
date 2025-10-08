@@ -195,3 +195,4 @@ cython_debug/
 /.vscode
 vm_config.json
 /ml_research_kills_alpha/.ssh
+/scripts
