@@ -85,6 +85,9 @@ create_environment:
 END_DATE    ?=
 FORCE_RAW   ?=
 FORCE_CLEAN ?=
+TARGET_COL  ?=
+TEST        ?=
+FORCE_ML    ?=
 
 # Compose CLI flags only if user sets them (no empty flags)
 DATA_FLAGS :=
@@ -98,10 +101,29 @@ ifneq ($(strip $(FORCE_CLEAN)),)
 	DATA_FLAGS += --force-clean
 endif
 
+PREDICTION_FLAGS :=
+ifneq ($(strip $(END_DATE)),)
+	PREDICTION_FLAGS += --end_year "$(END_DATE)"
+endif
+ifneq ($(strip $(TARGET_COL)),)
+	PREDICTION_FLAGS += --target_col "$(TARGET_COL)"
+endif
+ifneq ($(strip $(TEST)),)
+	PREDICTION_FLAGS += --test "$(TEST)"
+endif
+ifneq ($(strip $(FORCE_ML)),)
+	PREDICTION_FLAGS += --force_ml
+endif
+
 .PHONY: data
 data:
 	@echo "Running data pipeline (END_DATE=$(END_DATE), FORCE_RAW=$(FORCE_RAW), FORCE_CLEAN=$(FORCE_CLEAN))"
 	python -m ml_research_kills_alpha.datasets.data_pipeline $(DATA_FLAGS)
+	
+.PHONY: prediction
+prediction:
+	@echo "Running prediction pipeline (END_DATE=$(END_DATE), TARGET_COL=$(TARGET_COL), TEST=$(TEST), FORCE_ML=$(FORCE_ML))"
+	python -m ml_research_kills_alpha.modeling.prediction_pipeline $(PREDICTION_FLAGS)
 
 
 #################################################################################

@@ -210,8 +210,13 @@ class RollingTrainer:
             y_val = self.get_y(val_data)
             
             test_sorted = test_data.sort_values(self.year_col)
-            months = test_sorted[self.year_col].dt.to_period('M').unique()
+            # append the last month of the previous year val set
+            last_val_month = val_data[self.year_col].dt.to_period('M').max()
+            last_val_df = val_data[val_data[self.year_col].dt.to_period('M') == last_val_month].copy()
+            test_sorted = pd.concat([last_val_df, test_sorted], axis=0).reset_index(drop=True)
+            
             test_sorted['formation_month'] = test_sorted[self.year_col].dt.to_period('M')
+            months = test_sorted['formation_month'].sort_values().unique()
 
             results[year] = {}
 

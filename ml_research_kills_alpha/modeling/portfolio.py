@@ -5,10 +5,13 @@ import pandas as pd
 
 from ml_research_kills_alpha.support import Logger
 
+# TODO: Fede - remember to save eff_half_spread_raw in the panel data before running models
+from ml_research_kills_alpha.modeling.temp_files import _half_spread_from_feature
+
 ID_COLS   = {'permno','date'}
 META_COLS = {'ret','tbl','prc','shrout','Size','exchcd','shrcd','eff_half_spread'}
 RESERVED  = ID_COLS | META_COLS | {'y_hat','rx_fwd','ret_fwd','rf','mcap','yyyymm'}
-COST_COL = 'BidAskSpread'
+COST_COL = 'eff_half_spread_raw'  # raw input cost column name in the panel
 
 
 class Portfolio():
@@ -18,7 +21,6 @@ class Portfolio():
         self.logger = Logger()
         self.target_column = target_column
         self.prepare_panel()
-
 
     def prepare_panel(self) -> pd.DataFrame:
         """
@@ -48,18 +50,37 @@ class Portfolio():
 
         # Costs column default
         if COST_COL not in self.panel.columns:
-            self.panel[COST_COL] = 0.0  # you can merge real Chen–Velikov later
+            # TODO: At the moment use _half_spread_from_feature with default anchors
+            self.logger.info(f" Adding default cost column '{COST_COL}' with 0.0 values")
+            if 'BidAskSpread' in self.panel.columns:
+                self.panel[COST_COL] = _half_spread_from_feature(self.panel,
+                                                                 feature_col='BidAskSpread',
+                                                                 anchors_p=(0.05, 0.50, 0.95),
+                                                                 anchors_bp=(4.0, 12.0, 45.0))
+            else:
+                self.panel[COST_COL] = 0.0
 
         self.panel = self.panel[['permno', 'date', self.target_column, 'me', COST_COL]]
         self.logger.info(f" Final shape: {self.panel.shape}")
         return self.panel
+    
+    def _collapse_duplicate_permnos(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Collapse duplicate permnos by averaging their feature values.
+        """
+        if df[['permno','date','model']].duplicated().any():
+            dup_permnos = df[df[['permno','date','model']].duplicated()]['permno'].unique()
+            self.logger.warn(f"Duplicate permnos found: {dup_permnos}")
+            collapse_cols = {'y_hat': 'mean'}
+            df = (df.groupby(['permno','date','model'], as_index=False).agg(collapse_cols))
+        return df
 
     def merge_preds(self, preds: pd.DataFrame, model_name: str) -> pd.DataFrame:
         """
         Merge model predictions into the prepared panel DataFrame.
         """
-        self.logger.info(f"Merging predictions from model '{model_name}' into panel")
         p = self.panel.copy()
+        preds = self._collapse_duplicate_permnos(preds)
         q = preds[preds['model'] == model_name].copy()
         q['date'] = q['date'].astype('period[M]')
         df = p.merge(q[['permno','date','y_hat']], on=['permno','date'], how='inner')
@@ -70,8 +91,7 @@ class Portfolio():
         """
         Assign deciles to the predictions of the specified model.
         """
-        self.logger.info("Assigning deciles based on model predictions")
-        
+
         # Ensure the model's prediction column exists
         prediction_col = f'y_hat_{model_name}'
         if prediction_col not in month_df.columns:
@@ -105,13 +125,14 @@ class Portfolio():
         s = me.sum()
         return (me / s) if s > 0 else me*0
     
-    def realized_returns_for_month(self, panel: pd.DataFrame, date_period: pd.Period) -> pd.Series:
+    def realized_returns_for_month(self, date_period: pd.Period) -> pd.Series:
         """
         Get realized simple returns for a specific month.
         """
-        month_slice = panel[panel['date'] == date_period][['permno', self.target_column]].copy()
-        by_permno = month_slice.set_index('permno')[self.target_column]
-        return pd.to_numeric(by_permno, errors='coerce').fillna(0.0)
+        month_slice = self.panel[self.panel['date'] == date_period][['permno', self.target_column]].copy()
+        # collapse duplicates -> single value per permno (mean or last both ok)
+        by_permno = (month_slice.groupby('permno', as_index=True)[self.target_column].mean())
+        return by_permno
 
     def target_weights_month(self, month_df: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
         """
@@ -246,30 +267,41 @@ class Portfolio():
         preds_merged = preds_merged.sort_values(['date','permno'])
 
         for formation_month, month_df in preds_merged.groupby('date', sort=True):
+            
+            self.logger.info(f"Backtesting formation month: {formation_month}, model: {model_name}")
+            
+            collapse_spec = {f'y_hat_{model_name}': 'mean', 'me': 'last', COST_COL: 'mean', self.target_column: 'last'}
+            month_df = (month_df.groupby('permno', as_index=False).agg(collapse_spec))
+
             # 1) Sort into deciles
+            self.logger.info(f"Assigning deciles based on model predictions")
             month_df = self.assign_deciles(month_df, model_name=model_name)
 
             # 2) Target leg weights at formation t
+            self.logger.info(f"Computing target weights for long and short legs")
             long_target_weights, short_target_weights = self.target_weights_month(month_df)
 
             # 3) Drift prior holdings through returns of month t (pre-rebalance)
-            returns_t = self.realized_returns_for_month(self.panel, formation_month, self.target_column)
+            self.logger.info(f"Drifting previous weights through realized returns for month {formation_month}")
+            returns_t = self.realized_returns_for_month(formation_month)
             long_pre = self.drift(previous_long_weights, returns_t)
             short_pre = self.drift(previous_short_weights, returns_t)
 
             # 4) Turnover & trading costs using effective half-spread at month t
+            self.logger.info(f"Computing turnover and trading costs for month {formation_month}")
             half_spread_t = month_df.set_index('permno')[COST_COL]
             long_to, long_cost = self.turnover_and_cost(long_target_weights, long_pre, half_spread_t)
             short_to, short_cost = self.turnover_and_cost(short_target_weights, short_pre, half_spread_t)
 
             # 5) Gross return in month t+1 (payoff month)
+            self.logger.info(f"Calculating gross and net returns for payoff month {formation_month + 1}")
             payoff_month = formation_month + 1
-            returns_t1 = self.realized_returns_for_month(self.panel, payoff_month, self.target_column)
+            returns_t1 = self.realized_returns_for_month(payoff_month)
 
             gross_long = (long_target_weights * returns_t1.reindex(long_target_weights.index).fillna(0.0)).sum()
             gross_short = (short_target_weights * returns_t1.reindex(short_target_weights.index).fillna(0.0)).sum()
             gross_ls = gross_long - gross_short
-            net_ls = (gross_long - long_cost) - (gross_short - short_cost)
+            net_ls = gross_ls - long_cost - short_cost
 
             results.append({
                 'date': formation_month.to_timestamp('M'),
@@ -285,6 +317,8 @@ class Portfolio():
 
             previous_long_weights = long_target_weights
             previous_short_weights = short_target_weights
+            self.logger.info(f"Completed month {formation_month}")
+            self.logger.info(" ")
 
         res = pd.DataFrame(results).set_index('date').sort_index()
         res['cum_gross_ls'] = (1.0 + res['gross_ls']).cumprod()
