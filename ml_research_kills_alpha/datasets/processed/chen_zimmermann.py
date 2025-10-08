@@ -9,6 +9,7 @@ import numpy as np
 from ml_research_kills_alpha.datasets.processed.cleaner import Cleaner
 from ml_research_kills_alpha.support import START_DATE
 import argparse
+import re
 
 
 class ChenZimmermannCleaner(Cleaner):
@@ -39,10 +40,26 @@ class ChenZimmermannCleaner(Cleaner):
         # time filtering
         df = self.filter_on_date(self.start_date, self.end_date, df)
 
+        # copy "BidAskSpread" to "bid_ask_spread_abs" because we need it for portfolio building
+        df["bid_ask_spread_abs"] = df["BidAskSpread"]
+
         # identify feature columns
-        meta_cols = {"permno", "date", "yyyymm", "ret", "retx", "siccd", "exchcd", "shrcd", "cusip", "permco", "ticker"}
+        meta_cols = {"permno", "date", "yyyymm", "ret", "retx", "siccd", "exchcd", "shrcd", "cusip", "permco", "ticker", "bid_ask_spread_abs"}
         numeric_cols = [c for c in df.columns if np.issubdtype(df[c].dtype, np.number)]
         feature_cols = [c for c in numeric_cols if c not in meta_cols]
+        
+        # remove rows with no permno, ret, or retx
+        df = df.dropna(subset=["permno", "ret", "retx"])
+
+        # change all column names to i_want_this_format: lowercase, underscores for spaces and camel case
+        def to_snake_case(name):
+            # Replace spaces and hyphens with underscores
+            name = re.sub(r"[ -]+", "_", name)
+            # Convert CamelCase to snake_case
+            name = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', name)
+            # Lowercase everything
+            return name.lower()
+        df.columns = [to_snake_case(c) for c in df.columns]
 
         # features percent-ranked by month mapped to [-1, 1]
         if not feature_cols:
