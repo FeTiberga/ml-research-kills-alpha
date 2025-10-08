@@ -1,54 +1,44 @@
 #!/usr/bin/env python3
 import os
+import sys
 import subprocess
 import concurrent.futures
 
-ALL = ["ENET", "OLS-H", "FFNN2", "FFNN3", "FFNN4", "FFNN5"]
-# ALL = ["ENET", "OLS-H", "FFNN2", "FFNN3", "FFNN4", "FFNN5", "LSTM1", "LSTM2"]
-
+ALL = ["ENET","OLS-H","FFNN2","FFNN3","FFNN4","FFNN5"]
 
 def run_one(model_name: str, end_year: int, target_col: str) -> None:
     """
     Launch a single-model training process that writes a shard:
     processed/preds/predictions_<MODEL>.csv
-
-    Args:
-        model_name (str): Registry key (e.g., 'FFNN3').
-        end_year (int): Last test year (inclusive).
-        target_col (str): Return column to predict, e.g., 'ret'.
     """
     env = os.environ.copy()
 
-    # Split CPU cores fairly among workers to avoid over-subscription
     total_cores = os.cpu_count() or 8
     max_workers = min(len(ALL), max(1, total_cores // 4))
     threads_per_worker = max(1, total_cores // max_workers)
-
-    for var in ["OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "NUMEXPR_NUM_THREADS", "PYTORCH_NUM_THREADS"]:
+    for var in ["OMP_NUM_THREADS","MKL_NUM_THREADS","OPENBLAS_NUM_THREADS","NUMEXPR_NUM_THREADS","PYTORCH_NUM_THREADS"]:
         env[var] = str(threads_per_worker)
 
+    python_exe = sys.executable
+
     cmd = [
-        "python", "-m", "ml_research_kills_alpha.prediction_pipeline",
+        python_exe, "-m", "ml_research_kills_alpha.prediction_pipeline",
         "--end_year", str(end_year),
         "--target_col", target_col,
         "--models", model_name,
+        "--skip_backtest",   # worker only trains & writes shard
     ]
     subprocess.run(cmd, env=env, check=True)
 
 def main() -> None:
-    """
-    Run all models concurrently, then return control to the caller (Makefile).
-    """
     end_year = int(os.environ.get("YEAR", "2023"))
     target_col = os.environ.get("TARGET", "ret")
-
     total_cores = os.cpu_count() or 8
     max_workers = min(len(ALL), max(1, total_cores // 4))
-
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as ex:
         futs = [ex.submit(run_one, m, end_year, target_col) for m in ALL]
         for f in concurrent.futures.as_completed(futs):
-            f.result()  # raise if any failed
+            f.result()
 
 if __name__ == "__main__":
     main()
