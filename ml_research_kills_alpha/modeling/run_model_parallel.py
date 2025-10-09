@@ -22,7 +22,7 @@ def run_one(model_name: str, end_year: int, target_col: str) -> None:
     python_exe = sys.executable
 
     cmd = [
-        python_exe, "-m", "ml_research_kills_alpha.prediction_pipeline",
+        python_exe, "-m", "ml_research_kills_alpha.modeling.prediction_pipeline",
         "--end_year", str(end_year),
         "--target_col", target_col,
         "--models", model_name,

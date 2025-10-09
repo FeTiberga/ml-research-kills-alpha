@@ -1,16 +1,31 @@
 import pandas as pd
 import numpy as np
+import re
+
 from ml_research_kills_alpha.modeling.algorithms.base_model import Modeler
 from ml_research_kills_alpha.modeling.algorithms.ensemble import EnsembleModel
 from ml_research_kills_alpha.datasets.useful_files import CZ_SIGNAL_DOC
 from ml_research_kills_alpha.support.constants import NON_FEATURES, PREDICTED_COL, META_COLS
 from ml_research_kills_alpha.support import Logger
 
+
 VALIDATION_PERIOD = 6
 START_YEAR = 2005
 CZ_DF = pd.read_csv(CZ_SIGNAL_DOC)
 CZ_YEAR_COLUMN = "Year"
 CZ_FEATURE_COLUMN = "Acronym"
+
+
+def to_snake_case(name):
+    # Replace spaces and hyphens with underscores
+    name = re.sub(r"[ -]+", "_", name)
+    # Convert CamelCase to snake_case
+    name = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', name)
+    # Lowercase everything
+    return name.lower()
+# Convert each value in the CZ_FEATURE_COLUMN column to snake_case
+if CZ_FEATURE_COLUMN in CZ_DF.columns:
+    CZ_DF[CZ_FEATURE_COLUMN] = CZ_DF[CZ_FEATURE_COLUMN].apply(to_snake_case)
 
 
 class RollingTrainer:
@@ -93,7 +108,7 @@ class RollingTrainer:
         val_end_year = year - 1
         
         features_data = self.filter_features(year)
-        features_data[self.year_col] = pd.to_datetime(features_data[self.year_col])
+        features_data.loc[:, self.year_col] = pd.to_datetime(features_data[self.year_col])
 
         train_data = features_data[features_data[self.year_col].dt.year <= train_end_year]
         val_data = features_data[(features_data[self.year_col].dt.year >= val_start_year) & (features_data[self.year_col].dt.year <= val_end_year)]

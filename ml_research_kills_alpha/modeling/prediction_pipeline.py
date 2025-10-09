@@ -35,11 +35,11 @@ def _read_panel_fast(panel_path: Path) -> pd.DataFrame:
     if parquet_path.exists():
         return pd.read_parquet(parquet_path)
     else:
-        logger.warning(f"Parquet file not found. Falling back to CSV.")
+        logger.warn(f"Parquet file not found. Falling back to CSV.")
         if not panel_path.exists():
             logger.error(f"Panel file not found: {panel_path} - Run data pipeline first.")
             raise FileNotFoundError(f"Panel file not found: {panel_path} - Run data pipeline first.")
-    return pd.read_csv(panel_path, low_memory=False)
+    return pd.read_csv(panel_path)
 
 
 def build_models(selected_names: list[str] | None = None) -> list[Modeler]:
@@ -99,7 +99,7 @@ def merge_prediction_shards(in_dir: Path, out_file: Path) -> pd.DataFrame:
     shard_paths = sorted(glob.glob(str(in_dir / "predictions_*.csv")))
     if not shard_paths:
         raise FileNotFoundError(f"No prediction shards found in {in_dir}")
-    frames = [pd.read_csv(p, low_memory=False) for p in shard_paths]
+    frames = [pd.read_csv(p) for p in shard_paths]
     merged = pd.concat(frames, axis=0, ignore_index=True)
     # Optional: enforce column order (helps when some shards miss rare columns)
     cols = sorted(merged.columns.tolist())
@@ -126,7 +126,7 @@ def step_train_and_predict(panel: pd.DataFrame, models: list[Modeler], end_year:
     preds_file = out_dir / "predictions.csv"
     if preds_file.exists() and not force_ml:
         logger.info(f"Predictions already exist. Reading -> {preds_file}")
-        return pd.read_csv(preds_file, low_memory=False)
+        return pd.read_csv(preds_file)
 
     if not models:
         logger.warn("No models were added in build_models().")
@@ -227,6 +227,9 @@ def main():
     
     parser.add_argument("--merge_shards", action="store_true", default=False,
                         help="Merge predictions_*.csv shards in the preds dir into predictions.csv and exit.")
+    
+    parser.add_argument("--skip_backtest", action="store_true", default=False,
+                        help="If set, only runs training & prediction, skips backtest step.")
 
     
     # models and output data for parallel runs
@@ -263,6 +266,10 @@ def main():
         out_dir=preds_dir,
         force_ml=args.force_ml
     )
+
+    if args.skip_backtest:
+        logger.info("Skipping backtest step as per --skip_backtest flag. Exiting.")
+        return
 
     logger.info("=== STEP 2: PORTFOLIO BACKTESTS ===")
     step_backtest_portfolios(

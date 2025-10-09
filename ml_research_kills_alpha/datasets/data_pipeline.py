@@ -202,7 +202,7 @@ def step_merge_processed(cz_df: pd.DataFrame | None, crsp_df: pd.DataFrame | Non
         raise FileNotFoundError(f"Missing interim CRSP file: {crsp_path}. Run cleaning first.")
 
     cz = cz_df if cz_df is not None else pd.read_csv(cz_path)
-    crsp = crsp_df if crsp_df is not None else pd.read_csv(crsp_path, low_memory=False)
+    crsp = crsp_df if crsp_df is not None else pd.read_csv(crsp_path)
 
     # ensure date and permno columns are in the same format
     for df in [cz, crsp]:

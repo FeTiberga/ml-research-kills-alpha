@@ -35,7 +35,7 @@ class CRSPCleaner(Cleaner):
         if self.dataset is not None:
             df = self.dataset
         else:
-            df = pd.read_csv(file_name, low_memory=False)
+            df = pd.read_csv(file_name)
         
         # time filtering
         df = self.filter_on_date(self.start_date, self.end_date, df)
