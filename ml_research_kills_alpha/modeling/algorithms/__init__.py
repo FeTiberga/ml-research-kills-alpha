@@ -3,4 +3,3 @@ from ml_research_kills_alpha.modeling.algorithms.elastic_net import ElasticNetMo
 from ml_research_kills_alpha.modeling.algorithms.huber_ols import HuberRegressorModel
 from ml_research_kills_alpha.modeling.algorithms.neural_networks import FFNNModel
 from ml_research_kills_alpha.modeling.algorithms.lstm import LSTMModel
-from ml_research_kills_alpha.modeling.algorithms.ensemble import EnsembleModel

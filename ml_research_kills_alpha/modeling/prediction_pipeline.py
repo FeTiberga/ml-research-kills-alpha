@@ -9,12 +9,16 @@ import re
 import pandas as pd
 
 from ml_research_kills_alpha.config import PROCESSED_DATA_DIR
-from ml_research_kills_alpha.support import Logger
+from ml_research_kills_alpha.support import Logger, MODELS
 from ml_research_kills_alpha.modeling.algorithms.base_model import Modeler
-from ml_research_kills_alpha.modeling.algorithms.elastic_net import ElasticNetModel
 from ml_research_kills_alpha.modeling.algorithms.huber_ols import HuberRegressorModel
+from ml_research_kills_alpha.modeling.algorithms.elastic_net import ElasticNetModel
+from ml_research_kills_alpha.modeling.algorithms.ridge import RidgeModel
+from ml_research_kills_alpha.modeling.algorithms.lasso import LassoModel
+from ml_research_kills_alpha.modeling.algorithms.random_forest import RandomForestModel
+from ml_research_kills_alpha.modeling.algorithms.xgboost import XGBoostModel
 from ml_research_kills_alpha.modeling.algorithms.neural_networks import FFNNModel
-# from ml_research_kills_alpha.modeling.algorithms.lstm import LSTMModel
+from ml_research_kills_alpha.modeling.algorithms.lstm import LSTMModel
 
 from ml_research_kills_alpha.modeling.rolling_trainer import RollingTrainer
 from ml_research_kills_alpha.modeling.portfolio import Portfolio
@@ -48,18 +52,67 @@ def build_models(selected_names: list[str] | None = None) -> list[Modeler]:
     Replace the placeholders with your actual constructors / hyperparams.
     """
     MODEL_REGISTRY = {
-        "ENET": lambda: ElasticNetModel(),
+        # linear baselines
         "OLS-H": lambda: HuberRegressorModel(),
+        "ENET": lambda: ElasticNetModel(),
+        "LASSO": lambda: LassoModel(),
+        "RIDGE": lambda: RidgeModel(),
+        
+        # tree-based and boosting
+        "RF": lambda: RandomForestModel(),
+        "XGBOOST": lambda: XGBoostModel(),
+        
+        # neural networks
         "FFNN2": lambda: FFNNModel(num_layers=2),
         "FFNN3": lambda: FFNNModel(num_layers=3),
         "FFNN4": lambda: FFNNModel(num_layers=4),
         "FFNN5": lambda: FFNNModel(num_layers=5),
-        # "LSTM1": lambda: LSTMModel(num_layers=1),
-        # "LSTM2": lambda: LSTMModel(num_layers=2),
+        
+        # LSTM for sequence data
+        "LSTM1": lambda: LSTMModel(num_layers=1),
+        "LSTM2": lambda: LSTMModel(num_layers=2),
     }
-    names = selected_names or list(MODEL_REGISTRY.keys())
+    restricted_registry = {k: v for k, v in MODEL_REGISTRY.items() if k in MODELS}
+    names = selected_names or list(restricted_registry.keys())
     logger.info(f"Building models: {', '.join(names)}")
-    return [MODEL_REGISTRY[n]() for n in names if n in MODEL_REGISTRY]
+    return [restricted_registry[n]() for n in names if n in restricted_registry]
+
+
+def get_ensemble(models: list[Modeler]) -> pd.DataFrame:
+    """
+    From a list of models, extract and average the predictions of deep models
+
+    Args:
+        models: List of instantiated Modeler objects.
+
+    Returns:
+        pd.DataFrame: The merged predictions DataFrame with averaged ensemble predictions.
+    """
+    filtered = [m for m in models if m.is_deep]
+    if not filtered:
+        logger.warn(f"No deep models found for ensemble.")
+        return pd.DataFrame()
+    
+    # get prediction files
+    paths = [PROCESSED_DATA_DIR / "preds" / f"predictions_{_sanitize_model_name(m.name)}.csv" for m in filtered]
+    frames = [pd.read_csv(p) for p in paths if p.exists()]
+    
+    if not frames:
+        logger.warn(f"No prediction files found for ensemble.")
+        return pd.DataFrame()
+    
+    # concatenate all predictions
+    merged = pd.concat(frames, axis=0, ignore_index=True)
+    # drop model column as we will replace it
+    merged = merged.drop(columns=["model"], errors="ignore")
+    
+    ensemble = (merged.groupby(["permno","date"])["y_hat"]
+                  .mean()
+                  .reset_index()
+                  .assign(model="ENSEMBLE"))
+    
+    ensemble.to_csv(PROCESSED_DATA_DIR / "preds" / "predictions_ENSEMBLE.csv", index=False)
+    return ensemble
 
 
 def save_per_model_shards(preds_all: pd.DataFrame, out_dir: Path) -> list[Path]:
@@ -162,7 +215,7 @@ def step_train_and_predict(panel: pd.DataFrame, models: list[Modeler], end_year:
 
 
 def step_backtest_portfolios(panel: pd.DataFrame, predictions: pd.DataFrame,
-                             target_col: str, out_dir: Path) -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
+                             target_col: str, out_dir: Path) -> None:
     """
     For each model, run the decile long-short backtest and write monthly time series and a comparison summary.
 
@@ -270,8 +323,14 @@ def main():
     if args.skip_backtest:
         logger.info("Skipping backtest step as per --skip_backtest flag. Exiting.")
         return
+    
+    logger.info("=== STEP 2: PREDICT ENSEMBLE ===")
+    ensemble_preds = get_ensemble(models)
+    if not ensemble_preds.empty:
+        predictions = pd.concat([predictions, ensemble_preds], axis=0, ignore_index=True)
+        logger.info(f"Appended ensemble predictions. Total rows now: {len(predictions)}")
 
-    logger.info("=== STEP 2: PORTFOLIO BACKTESTS ===")
+    logger.info("=== STEP 3: PORTFOLIO BACKTESTS ===")
     step_backtest_portfolios(
         panel=panel,
         predictions=predictions,

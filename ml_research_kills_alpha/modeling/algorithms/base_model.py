@@ -8,31 +8,53 @@ import numpy as np
 from ml_research_kills_alpha.support import Logger
 from ml_research_kills_alpha.support.constants import RANDOM_SEED
 
+
+SUB_SAMPLE_PCT = 0.2
+
+
 class Modeler(abc.ABC):
 
     def __init__(self, name: str = None):
         self.name = name
         self.logger = Logger()
+        self.is_deep = False
         
-    @abc.abstractmethod
-    def get_subsample(self,
-                      sub_sample_pct: float,
-                      X_train: pd.DataFrame, y_train: pd.Series,
-                      X_val: pd.DataFrame, y_val: pd.Series,
-                      random_state: int = RANDOM_SEED) -> tuple[np.ndarray, np.ndarray]:
-        """
-        Fuse train and val, then return a stratified 20% representative subsample.
-        """
-        # Concatenate train and val
-        X_all = pd.concat([X_train, X_val], axis=0)
-        y_all = pd.concat([y_train, y_val], axis=0)
 
-        # Stratified sampling
-        subsample_indices = X_all.sample(frac=sub_sample_pct, random_state=random_state).index
+    def get_subsample(self,
+                      X_train: pd.DataFrame | np.ndarray, y_train: pd.Series | np.ndarray,
+                      X_val: pd.DataFrame | np.ndarray, y_val: pd.Series | np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Return a label-aware subsample for fast hyperparameter search.
+        Combines train and validation then samples rows while preserving the target
+        distribution by stratifying on y-quantile bins.
+
+        Args:
+            X_train: Training features (2D).
+            y_train: Training target (1D).
+            X_val: Validation features (2D).
+            y_val: Validation target (1D).
+            random_state: Random seed.
+
+        Returns:
+            (X_sub, y_sub): NumPy arrays for the subsample.
+        """
+        X_all = pd.concat([pd.DataFrame(X_train), pd.DataFrame(X_val)], axis=0)
+        y_all = pd.concat([pd.Series(y_train).reset_index(drop=True),
+                           pd.Series(y_val).reset_index(drop=True)], axis=0).reset_index(drop=True)
+        # Bin y into deciles for stratification; fallback to simple sample if it fails.
+        try:
+            bins = pd.qcut(y_all, q=10, labels=False, duplicates="drop")
+            subsample_indices = (
+                X_all.assign(_bin=bins)
+                    .groupby("_bin", group_keys=False)
+                    .apply(lambda d: d.sample(frac=SUB_SAMPLE_PCT, random_state=RANDOM_SEED))
+                    .index
+            )
+        except Exception:
+            subsample_indices = X_all.sample(frac=SUB_SAMPLE_PCT, random_state=RANDOM_SEED).index
 
         X_sub = X_all.loc[subsample_indices].to_numpy()
         y_sub = y_all.loc[subsample_indices].to_numpy()
-
         return X_sub, y_sub
 
     @abc.abstractmethod

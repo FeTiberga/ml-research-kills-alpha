@@ -8,7 +8,6 @@ import pandas as pd
 
 from ml_research_kills_alpha.support import Logger
 from ml_research_kills_alpha.config import RAW_DATA_DIR, INTERIM_DATA_DIR
-from ml_research_kills_alpha.support import CUTOFF_2005
 RAW_DIR = Path(RAW_DATA_DIR)
 INTERIM_DIR = Path(INTERIM_DATA_DIR)
 

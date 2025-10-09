@@ -66,7 +66,6 @@ We measure how much of the ML edge in predicting future stocks survives when acc
     │   ├── algorithms                     <- folder with machine learning algorithms
     │   │   ├── base_model.py              <- defines Modeler base class
     │   │   ├── elastic_net.py             <- defines ElasticNetModel
-    │   │   ├── ensemble.py                <- defines EnsembleModel
     │   │   ├── huber_ols.py               <- defines HuberRegressorModel
     │   │   ├── lstm.py                    <- defines LSTMModel
     │   │   └── neural_networks.py         <- defines FFNNModel

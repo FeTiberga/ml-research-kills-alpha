@@ -1,3 +1,5 @@
+# Huber regression model for return prediction
+
 import numpy as np
 import pandas as pd
 import joblib
@@ -5,13 +7,11 @@ from sklearn.linear_model import HuberRegressor
 from sklearn.model_selection import GridSearchCV
 
 from ml_research_kills_alpha.modeling.algorithms.base_model import Modeler
-from ml_research_kills_alpha.support.constants import RANDOM_SEED
 from ml_research_kills_alpha.support import Logger
 
 
 CROSS_VALIDATION_FOLDS = 2
 MAX_ITER = 10000
-SUB_SAMPLE_PCT = 0.2
 
 
 class HuberRegressorModel(Modeler):
@@ -38,9 +38,9 @@ class HuberRegressorModel(Modeler):
         
         self.is_deep = False  # flag to identify deep learning models for ensembling
         self.fixed_parameters = True # flag to identify whether we fine-tune hyperparameters once or for each time window
-        
-    def get_subsample(self, X_train, y_train, X_val, y_val, random_state=None):
-        return super().get_subsample(SUB_SAMPLE_PCT, X_train, y_train, X_val, y_val, random_state)
+
+    def get_subsample(self, X_train, y_train, X_val, y_val):
+        return super().get_subsample(X_train, y_train, X_val, y_val)
 
     def train(self,
               X_train: pd.Series, y_train: pd.Series,

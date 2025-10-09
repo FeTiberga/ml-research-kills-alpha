@@ -1,8 +1,11 @@
+# Feed-Forward Neural Network model for return prediction
+
 import os
 import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
+
 from ml_research_kills_alpha.modeling.algorithms.base_model import Modeler
 from ml_research_kills_alpha.support.constants import RANDOM_SEED
 from ml_research_kills_alpha.support import Logger

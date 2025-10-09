@@ -39,7 +39,7 @@ def _ensure_date_col(df: pd.DataFrame) -> pd.DataFrame:
         df["date"] = pd.to_datetime(df["yyyymm"].astype(str), format="%Y%m")
     else:
         raise ValueError("DataFrame must have either 'date' or 'yyyymm' column.")
-    df["date"] = df["date"] + pd.offsets.MonthBegin(1) - pd.offsets.Day(1)
+    df["date"] = pd.to_datetime(df["date"]).dt.to_period("M").dt.to_timestamp()
     return df
 
 
@@ -155,7 +155,6 @@ def step_download_raw(force_raw: bool) -> tuple[pd.DataFrame | None, pd.DataFram
     return cz_df, crsp_df
     
 
-
 def step_clean_interim(force_clean: bool, end_date: str,
                        cz_df: pd.DataFrame | None = None,
                        crsp_df: pd.DataFrame | None = None) -> tuple[pd.DataFrame | None, pd.DataFrame | None]:
@@ -205,10 +204,12 @@ def step_merge_processed(cz_df: pd.DataFrame | None, crsp_df: pd.DataFrame | Non
     crsp = crsp_df if crsp_df is not None else pd.read_csv(crsp_path)
 
     # ensure date and permno columns are in the same format
-    for df in [cz, crsp]:
-        df = _ensure_date_col(df)
-        df["permno"] = _ensure_permno_int(df["permno"])
-        df.dropna(subset=["permno", "date"], inplace=True)
+    cz   = _ensure_date_col(cz)
+    crsp = _ensure_date_col(crsp)
+    cz["permno"]   = _ensure_permno_int(cz["permno"])
+    crsp["permno"] = _ensure_permno_int(crsp["permno"])
+    cz.dropna(subset=["permno", "date"], inplace=True)
+    crsp.dropna(subset=["permno", "date"], inplace=True)
     log.info(f"CZ data: {cz.shape[0]} rows, {cz.shape[1]} columns")
     log.info(f"CRSP data: {crsp.shape[0]} rows, {crsp.shape[1]} columns")
     
@@ -235,6 +236,12 @@ def step_merge_processed(cz_df: pd.DataFrame | None, crsp_df: pd.DataFrame | Non
     # make sure data is past START_DATE
     panel = panel[panel["date"] >= pd.to_datetime(START_DATE)]
     
+    # convert data to float32 and int32 where possible to save space and processing time
+    for c in panel.select_dtypes(include=["float64"]).columns:
+        panel[c] = pd.to_numeric(panel[c], errors="coerce").astype("float32")
+    for c in panel.select_dtypes(include=["int64"]).columns:
+        panel[c] = pd.to_numeric(panel[c], errors="coerce").astype("int32")
+
     # remove rows with no permno, ret, or retx
     meta_missing_count = {col: panel[col].isna().sum() for col in ["permno", "ret", "retx"]}
     for col, count in meta_missing_count.items():

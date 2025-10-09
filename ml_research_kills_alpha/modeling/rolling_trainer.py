@@ -3,10 +3,8 @@ import numpy as np
 import re
 
 from ml_research_kills_alpha.modeling.algorithms.base_model import Modeler
-from ml_research_kills_alpha.modeling.algorithms.ensemble import EnsembleModel
 from ml_research_kills_alpha.datasets.useful_files import CZ_SIGNAL_DOC
-from ml_research_kills_alpha.support.constants import NON_FEATURES, PREDICTED_COL, META_COLS
-from ml_research_kills_alpha.support import Logger
+from ml_research_kills_alpha.support import Logger, NON_FEATURES, PREDICTED_COL, META_COLS, LSTM_SEQUENCE_LENGTH
 
 
 VALIDATION_PERIOD = 6
@@ -117,12 +115,12 @@ class RollingTrainer:
         self.logger.info(f"Year {year}: Train data from start to {train_end_year}, Validation data from {val_start_year} to {val_end_year}, Test data for {year}.")
         return train_data, val_data, test_data
     
-    def get_x(self, df: pd.DataFrame) -> pd.Series:
+    def get_x(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Get the feature matrix X by excluding non-feature columns.
 
         Returns:
-            pd.Series: Feature matrix.
+            pd.DataFrame: Feature matrix.
         """ 
         exclude = set(NON_FEATURES) | set(META_COLS) | set(PREDICTED_COL) | {self.target_col}
         features = [col for col in df.columns if col not in exclude]
@@ -137,12 +135,84 @@ class RollingTrainer:
         """
         return df[self.target_col]
     
+    def build_sequences(self, panel: pd.DataFrame, feature_cols: list[str]) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Build LSTM sequences grouped by permno sorted by date.
+
+        Args:
+            panel (pd.DataFrame): Long panel with ['permno','date', features..., target_col]
+            feature_cols (list[str]): Feature names used as X.
+
+        Returns:
+            tuple: X_seq (N, T, D), y (N,)
+        """
+        panel = panel.sort_values(["permno", "date"]).reset_index(drop=True)
+        X_list, y_list = [], []
+        for permno, g in panel.groupby("permno", sort=False):
+            if len(g) < LSTM_SEQUENCE_LENGTH + 1:
+                continue
+            feats = g[feature_cols].to_numpy(dtype=np.float32)
+            tgt = g[self.target_col].to_numpy(dtype=np.float32)
+            for t in range(LSTM_SEQUENCE_LENGTH, len(g)):
+                X_list.append(feats[t - LSTM_SEQUENCE_LENGTH:t, :])
+                y_list.append(tgt[t])
+
+        if not X_list:
+            D = len(feature_cols)
+            return (
+                np.empty((0, LSTM_SEQUENCE_LENGTH, D), dtype=np.float32),
+                np.empty((0,), dtype=np.float32),
+            )
+        return np.stack(X_list), np.array(y_list)
+    
+    def _seq_indexed(self, panel: pd.DataFrame, feature_cols: list[str]) -> tuple[np.ndarray, np.ndarray, pd.DataFrame]:
+        """
+        Build sequences with an aligned index for (permno, date). Used by the LSTM.
+        The 'date' in the returned index corresponds to the prediction month.
+
+        Args:
+            panel (pd.DataFrame): Long panel with ['permno','date', features..., target_col].
+            feature_cols (list[str]): Features to feed the LSTM.
+
+        Returns:
+            tuple:
+                - X_seq (np.ndarray): shape (N, LSTM_SEQUENCE_LENGTH, D)
+                - y (np.ndarray): shape (N,)
+                - idx (pd.DataFrame): rows aligned with X_seq/y; columns ['permno','date']
+        """
+        panel = panel.sort_values(["permno","date"]).reset_index(drop=True)
+        X_list, y_list, idx_rows = [], [], []
+
+        for permno, g in panel.groupby("permno", sort=False):
+            if len(g) < LSTM_SEQUENCE_LENGTH + 1:
+                continue
+            feats = g[feature_cols].to_numpy(dtype=np.float32)
+            tgt   = g[self.target_col].to_numpy(dtype=np.float32)
+            dates = g["date"].to_numpy()
+
+            for t in range(LSTM_SEQUENCE_LENGTH, len(g)):
+                X_list.append(feats[t - LSTM_SEQUENCE_LENGTH:t, :])
+                y_list.append(tgt[t])
+                idx_rows.append({"permno": int(permno), "date": dates[t]})
+
+        if not X_list:
+            D = len(feature_cols)
+            return (
+                np.empty((0, LSTM_SEQUENCE_LENGTH, D), dtype=np.float32),
+                np.empty((0,), dtype=np.float32),
+                pd.DataFrame(columns=["permno","date"])
+            )
+
+        return np.stack(X_list), np.asarray(y_list), pd.DataFrame(idx_rows)
+
     def run_model(self, model: Modeler,
                   X_train: pd.Series, y_train: pd.Series,
                   X_val: pd.Series, y_val: pd.Series,
                   year: int, test_sorted: pd.DataFrame,
                   months: pd.Series, preds_all: list,
-                  train: bool = True) -> tuple[float, list]:
+                  val_panel: pd.DataFrame | None = None,
+                  feature_cols: list[str] | None = None
+                  ) -> tuple[float, list]:
         """
         Train and evaluate a single model for a specific year.
         
@@ -156,14 +226,12 @@ class RollingTrainer:
             test_sorted (pd.DataFrame): sorted test data for evaluation.
             months (pd.Series): unique months in the test data.
             preds_all (list): list to append predictions to.
-            train (bool): whether to train the model or not - for ensembles is False.
+            val_panel (pd.DataFrame | None): full validation panel for LSTM sequence building.
+            feature_cols (list[str]): feature columns used for LSTM sequence building.
         """
         self.logger.info(" ")
-        if train:
-            self.logger.info(f"Training model: {model.name} for year {year}")
-            model.train(X_train, y_train, X_val, y_val)
-        else:   
-            self.logger.info(f"Using pre-trained model: {model.name} for year {year}")
+        self.logger.info(f"Training model: {model.name} for year {year}")
+        model.train(X_train, y_train, X_val, y_val)
 
         monthly_losses = []
 
@@ -182,13 +250,36 @@ class RollingTrainer:
             curr_df = curr_df.drop(columns=['formation_month'])
 
             # Predict on prev cross-section
-            yhat = model.predict(self.get_x(prev_df))
-            prev_preds = prev_df[['permno', self.year_col]].copy()
-            prev_preds['y_hat'] = np.asarray(yhat)
-            prev_preds['model'] = model.name
-            # mark formation month as the 'date' you'll use for portfolio formation
-            prev_preds['date'] = prev_preds[self.year_col].dt.to_period('M')
             
+            # LSTM needs sequences built from (val + test up to curr_month)
+            if model.name.startswith("LSTM"):
+                if val_panel is None or feature_cols is None:
+                    self.logger.error("val_panel and feature_cols must be provided for LSTM models.")
+                    raise ValueError("val_panel and feature_cols must be provided for LSTM models.")
+                # Build sequences from (val_panel + test rows up to curr_month)
+                history = pd.concat([val_panel, test_sorted[test_sorted[self.year_col] <= curr_df[self.year_col].max()]])
+                X_seq, _, idx = self._seq_indexed(history, feature_cols)
+                if X_seq.shape[0] == 0 or idx.empty:
+                    self.logger.warning(f"No sequences could be built for LSTM model {model.name} for month {curr_month}. Skipping.")
+                    continue
+                # select sequences whose prediction month equals prev_month
+                mask = (idx["date"].astype("period[M]") == prev_month)
+                if not mask.any():
+                    self.logger.warning(f"No sequences found for LSTM model {model.name} for month {curr_month}. Skipping.")
+                    continue
+                yhat = model.predict(X_seq[mask.values])
+                prev_preds = idx.loc[mask, ["permno", "date"]].copy()
+                prev_preds["model"] = model.name
+                prev_preds["y_hat"] = yhat
+        
+            # Other models use get_x directly
+            else:
+                yhat = model.predict(self.get_x(prev_df))
+                prev_preds = prev_df[["permno", self.year_col]].copy()
+                prev_preds["y_hat"] = np.asarray(yhat)
+                prev_preds["model"] = model.name
+                prev_preds["date"]  = prev_preds[self.year_col].dt.to_period("M")
+                        
             preds_all.append(prev_preds[['permno','date','model','y_hat']])
 
             # Proper loss: align by permno intersection
@@ -199,7 +290,7 @@ class RollingTrainer:
                 loss = model.evaluate(merged[self.target_col].values, merged['y_hat'].values)
                 monthly_losses.append(loss)
                 
-        return np.mean(monthly_losses) if monthly_losses else None, preds_all
+        return (float(np.mean(monthly_losses)) if monthly_losses else float("nan")), preds_all
 
     def run(self):
         """
@@ -237,16 +328,29 @@ class RollingTrainer:
 
             # Train each model
             for model in self.models:
-                avg_loss, preds_all = self.run_model(model, X_train, y_train, X_val, y_val, year, test_sorted, months, preds_all)
-                results.setdefault(year, {})[model.name] = avg_loss
-
-            # Ensemble of all deep learning models (FFNNs and LSTMs)
-            deep_models = [m for m in self.models if getattr(m, 'is_deep', False)]
-            if deep_models:
-                ensemble_model = EnsembleModel(deep_models)
-                avg_loss, preds_all = self.run_model(ensemble_model, X_train, y_train, X_val, y_val, year, test_sorted, months, preds_all,
-                                                     train=False)
-                results[year]['Ensemble'] = avg_loss
+                
+                # LSTM needs special sequence data
+                if model.name.startswith("LSTM"):
+                    # feature_cols from *panel* that still has meta cols
+                    exclude = set(NON_FEATURES) | set(META_COLS) | set(PREDICTED_COL) | {self.target_col}
+                    feature_cols = [c for c in train_data.columns if c not in exclude]
+                    X_train_lstm, y_train_lstm = self.build_sequences(train_data, feature_cols)
+                    X_val_lstm, y_val_lstm = self.build_sequences(val_data, feature_cols)
+                    if X_train_lstm.shape[0] == 0 or X_val_lstm.shape[0] == 0:
+                        self.logger.warning(f"Not enough sequences to train LSTM model {model.name} for year {year}. Skipping.")
+                        continue
+                    avg_loss, preds_all = self.run_model(model,
+                                                         X_train_lstm, y_train_lstm,
+                                                         X_val_lstm, y_val_lstm,
+                                                         year, test_sorted, months, preds_all,
+                                                         val_panel=val_data,
+                                                         feature_cols=feature_cols)
+                    results.setdefault(year, {})[model.name] = avg_loss
+                    
+                # Other models work with X, y directly
+                else:
+                    avg_loss, preds_all = self.run_model(model, X_train, y_train, X_val, y_val, year, test_sorted, months, preds_all)
+                    results.setdefault(year, {})[model.name] = avg_loss
 
         preds_all = pd.concat(preds_all, axis=0).reset_index(drop=True)
         return preds_all, results
