@@ -17,6 +17,7 @@ tqdm>=4.66,<5
 
 # --- IO / Infra ---
 requests>=2.31,<3
+requests_cache>=1.2,<2
 python-dotenv>=1.0,<2
 pyyaml>=6.0,<7
 paramiko>=3.4,<4
