@@ -5,13 +5,10 @@ import pandas as pd
 
 from ml_research_kills_alpha.support import Logger
 
-# TODO: Fede - remember to save eff_half_spread_raw in the panel data before running models
-from ml_research_kills_alpha.modeling.temp_files import _half_spread_from_feature
-
 ID_COLS   = {'permno','date'}
-META_COLS = {'ret','tbl','prc','shrout','Size','exchcd','shrcd','eff_half_spread'}
+META_COLS = {'abret','tbl','prc','shrout','Size','exchcd','shrcd','bid_ask_spread_abs'}
 RESERVED  = ID_COLS | META_COLS | {'y_hat','rx_fwd','ret_fwd','rf','mcap','yyyymm'}
-COST_COL = 'eff_half_spread_raw'  # raw input cost column name in the panel
+COST_COL = 'bid_ask_spread_abs'
 
 
 class Portfolio():
@@ -50,15 +47,8 @@ class Portfolio():
 
         # Costs column default
         if COST_COL not in self.panel.columns:
-            # TODO: At the moment use _half_spread_from_feature with default anchors
             self.logger.info(f" Adding default cost column '{COST_COL}' with 0.0 values")
-            if 'BidAskSpread' in self.panel.columns:
-                self.panel[COST_COL] = _half_spread_from_feature(self.panel,
-                                                                 feature_col='BidAskSpread',
-                                                                 anchors_p=(0.05, 0.50, 0.95),
-                                                                 anchors_bp=(4.0, 12.0, 45.0))
-            else:
-                self.panel[COST_COL] = 0.0
+            self.panel[COST_COL] = 0.0
 
         self.panel = self.panel[['permno', 'date', self.target_column, 'me', COST_COL]]
         self.logger.info(f" Final shape: {self.panel.shape}")
@@ -169,7 +159,7 @@ class Portfolio():
 
         Args:
             previous_weights: Series of last month's post-trade weights indexed by security ID.
-            realized_total_returns: Series of simple total returns (e.g., 'ret')
+            realized_total_returns: Series of simple total returns (e.g., 'abret')
                 for the month just ended, indexed by the same security IDs.
 
         Returns:

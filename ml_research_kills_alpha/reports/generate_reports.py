@@ -13,9 +13,9 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from textwrap import dedent
 
-from ml_research_kills_alpha.config import REPORTS_DIR, PROCESSED_DATA_DIR
+from ml_research_kills_alpha.config import REPORTS_DIR, MODELS_DIR
 
-INPUT_DIR = PROCESSED_DATA_DIR / "backtests_reduced"
+INPUT_DIR = MODELS_DIR / "backtests"
 OUTPUT_DIR = REPORTS_DIR / "figures"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -270,13 +270,18 @@ def latex_summary_table(summary_df: pd.DataFrame, outfile: Path) -> Path:
 
 # ---- Run everything on the uploaded data ----
 
-model_files = {
+"""model_files = {
     "ENET": INPUT_DIR / "backtest_ENET.csv",
     "Ensemble": INPUT_DIR / "backtest_Ensemble.csv",
     "FFNN2": INPUT_DIR / "backtest_FFNN2.csv",
     "FFNN3": INPUT_DIR / "backtest_FFNN3.csv",
     "FFNN4": INPUT_DIR / "backtest_FFNN4.csv",
     "FFNN5": INPUT_DIR / "backtest_FFNN5.csv",
+    "OLS-H": INPUT_DIR / "backtest_OLS-H.csv",
+}"""
+
+model_files = {
+    "ENET": INPUT_DIR / "backtest_ENET.csv",
     "OLS-H": INPUT_DIR / "backtest_OLS-H.csv",
 }
 

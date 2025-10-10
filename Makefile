@@ -80,23 +80,36 @@ create_environment:
 # PROJECT RULES                                                                 #
 #################################################################################
 
-
-# Defaults
+# --------- User-facing knobs (safe defaults) ---------
+# Data step (daily/monthly cutoff for building the master panel)
 END_DATE    ?=
 FORCE_RAW   ?=
 FORCE_CLEAN ?=
+
+# Modeling/backtest step
+END_YEAR    ?=
 TARGET_COL  ?=
 TEST        ?=
 FORCE_ML    ?=
 
-# Sensible CPU-thread caps for BLAS/NumExpr/PyTorch inside each worker
+# Papers collection step
+PAPERS_INCLUDE_SUBTIER ?=
+PAPERS_MAX_RECORDS     ?=
+SCRAPE_SUBMISSION      ?= 0
+
+# Where the parallel runner lives (fallback if no scripts/ folder)
+RUN_PAR_SCRIPT := scripts/run_model_parallel.py
+ifeq ("$(wildcard $(RUN_PAR_SCRIPT))","")
+	RUN_PAR_SCRIPT := run_model_parallel.py
+endif
+
+# Sensible thread caps for BLAS/NumExpr/PyTorch inside each worker
 export OMP_NUM_THREADS      ?= 8
 export MKL_NUM_THREADS      ?= 8
 export OPENBLAS_NUM_THREADS ?= 8
 export NUMEXPR_NUM_THREADS  ?= 8
 export PYTORCH_NUM_THREADS  ?= 8
 
-# Compose CLI flags only if user sets them (no empty flags)
 DATA_FLAGS :=
 ifneq ($(strip $(END_DATE)),)
 	DATA_FLAGS += --end-date "$(END_DATE)"
@@ -109,8 +122,8 @@ ifneq ($(strip $(FORCE_CLEAN)),)
 endif
 
 PREDICTION_FLAGS :=
-ifneq ($(strip $(END_DATE)),)
-	PREDICTION_FLAGS += --end_year "$(END_DATE)"
+ifneq ($(strip $(END_YEAR)),)
+	PREDICTION_FLAGS += --end_year "$(END_YEAR)"
 endif
 ifneq ($(strip $(TARGET_COL)),)
 	PREDICTION_FLAGS += --target_col "$(TARGET_COL)"
@@ -122,23 +135,52 @@ ifneq ($(strip $(FORCE_ML)),)
 	PREDICTION_FLAGS += --force_ml
 endif
 
+# Compose papers CLI flags
+PAPERS_FLAGS :=
+ifneq ($(strip $(PAPERS_INCLUDE_SUBTIER)),)
+	PAPERS_FLAGS += --include-subtier
+endif
+ifneq ($(strip $(PAPERS_MAX_RECORDS)),)
+	PAPERS_FLAGS += --max-records "$(PAPERS_MAX_RECORDS)"
+endif
+
+# 1) Build/refresh processed data (panel)
 .PHONY: data
 data:
 	@echo "Running data pipeline (END_DATE=$(END_DATE), FORCE_RAW=$(FORCE_RAW), FORCE_CLEAN=$(FORCE_CLEAN))"
-	python -m ml_research_kills_alpha.datasets.data_pipeline $(DATA_FLAGS)
+	$(PYTHON_INTERPRETER) -m ml_research_kills_alpha.datasets.data_pipeline $(DATA_FLAGS)
 
-# 2) Train all models concurrently (writes predictions_*.csv shards)
+.PHONY: papers
+papers:
+	@echo "📚 Collecting ML papers (include_subtier=$(PAPERS_INCLUDE_SUBTIER), max=$(PAPERS_MAX_RECORDS), scrape_submission=$(SCRAPE_SUBMISSION))"
+	SCRAPE_SUBMISSION=$(SCRAPE_SUBMISSION) $(PYTHON_INTERPRETER) -m ml_research_kills_alpha.datasets.processed.paper_collector $(PAPERS_FLAGS)
+
+.phony: all_data
+all_data: data papers
+	@echo "All data steps completed."
+
+# 2) Train ALL models in parallel (each worker writes predictions_<MODEL>.csv)
+.PHONY: predictions-parallel
 predictions-parallel:
-	YEAR=$(YEAR) TARGET=$(TARGET) python scripts/run_models_parallel.py
+	@echo "Launching parallel training for all models (END_YEAR=$(END_YEAR), TARGET_COL=$(TARGET_COL))"
+	YEAR=$(END_YEAR) TARGET=$(TARGET_COL) $(PYTHON_INTERPRETER) $(RUN_PAR_SCRIPT)
 
-# 3) Merge shards into one combined predictions.csv
+# 3) Merge shards into one combined predictions.csv (idempotent)
+.PHONY: predictions-merge
 predictions-merge:
-	python -m ml_research_kills_alpha.prediction_pipeline --merge_shards True
-	
-.PHONY: prediction
-predictions: predictions-parallel predictions-merge
-	@echo "Running prediction pipeline (END_DATE=$(END_DATE), TARGET_COL=$(TARGET_COL), TEST=$(TEST), FORCE_ML=$(FORCE_ML))"
-	python -m ml_research_kills_alpha.modeling.prediction_pipeline $(PREDICTION_FLAGS)
+	@echo "Merging per-model shards into predictions.csv"
+	$(PYTHON_INTERPRETER) -m ml_research_kills_alpha.modeling.prediction_pipeline --merge_shards True
+
+# 4) Run portfolio backtests + summary (training is skipped if predictions.csv exists)
+.PHONY: predictions-backtest
+predictions-backtest:
+	@echo "Running backtests (training will be skipped because predictions.csv exists)"
+	$(PYTHON_INTERPRETER) -m ml_research_kills_alpha.modeling.prediction_pipeline $(PREDICTION_FLAGS)
+
+# 5) One-liner: do everything
+.PHONY: predictions
+predictions: predictions-parallel predictions-merge predictions-backtest
+	@echo "All models ran, shards merged, and backtests completed."
 
 
 #################################################################################

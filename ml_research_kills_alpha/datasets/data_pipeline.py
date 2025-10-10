@@ -243,10 +243,10 @@ def step_merge_processed(cz_df: pd.DataFrame | None, crsp_df: pd.DataFrame | Non
         panel[c] = pd.to_numeric(panel[c], errors="coerce").astype("int32")
 
     # remove rows with no permno, ret, or retx
-    meta_missing_count = {col: panel[col].isna().sum() for col in ["permno", "ret", "retx"]}
+    meta_missing_count = {col: panel[col].isna().sum() for col in ["permno", "abret", "ret", "retx"]}
     for col, count in meta_missing_count.items():
         log.info(f"Column {col} has {count} missing values, dropping those rows")
-    panel = panel.dropna(subset=["permno", "ret", "retx"])
+    panel = panel.dropna(subset=["permno", "abret", "ret", "retx"])
 
     # final ordering
     out_name = "master_panel.parquet"

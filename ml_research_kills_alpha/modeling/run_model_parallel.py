@@ -32,7 +32,7 @@ def run_one(model_name: str, end_year: int, target_col: str) -> None:
 
 def main() -> None:
     end_year = int(os.environ.get("YEAR", "2023"))
-    target_col = os.environ.get("TARGET", "ret")
+    target_col = os.environ.get("TARGET", "abret")
     total_cores = os.cpu_count() or 8
     max_workers = min(len(MODELS), max(1, total_cores // 4))
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as ex:

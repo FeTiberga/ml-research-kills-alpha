@@ -196,3 +196,4 @@ cython_debug/
 vm_config.json
 /ml_research_kills_alpha/.ssh
 /scripts
+mlfinance_cache.sqlite

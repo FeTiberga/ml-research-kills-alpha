@@ -3,7 +3,7 @@ import os
 import re
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from tqdm import tqdm
@@ -54,6 +54,10 @@ class PaperCollector:
         self.max_records = max_records
         self.logger = Logger()
 
+        # Semantic Scholar submission scraping can be very slow; opt-in via env
+        # Set SCRAPE_SUBMISSION=1 to enable.
+        self.scrape_submission: bool = os.getenv("SCRAPE_SUBMISSION", "0") == "1"
+
         # Transparent HTTP caching (Crossref & S2)
         requests_cache.install_cache("mlfinance_cache", expire_after=86400)  # 24h
 
@@ -76,12 +80,16 @@ class PaperCollector:
         self.output_dir = PROCESSED_DATA_DIR / "ml_finance_papers"
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
+        # Internal cache for S2 batch results (doi.lower() -> dict)
+        self._s2_map: dict[str, dict[str, Any]] = {}
+
     def collect(self) -> None:
         """
         Execute the data collection: search for papers, retrieve details, and save outputs.
         """
-        start_year = datetime.strptime(START_DATE, "%m/%d/%Y").year
-        end_year = datetime.now(datetime.UTC).year
+        # Use timezone-aware now() to avoid deprecation warnings
+        start_year = max(1990, datetime.strptime(START_DATE, "%m/%d/%Y").year)
+        end_year = datetime.now(timezone.utc).year
         self.logger.info(f"Searching for Machine Learning papers in journals: {self.journals} ({start_year}-present)")
 
         papers = self._search_crossref(start_year=start_year, end_year=end_year)
@@ -96,6 +104,14 @@ class PaperCollector:
         if self.max_records:
             papers = papers[: self.max_records]
             self.logger.info(f"Truncated paper list to --max-records={self.max_records}")
+
+        # --------- Batch-enrich abstracts via Semantic Scholar (big speedup) ---------
+        doi_list: list[str] = []
+        for it in papers:
+            d = (it.get("DOI") or "").strip()
+            if d:
+                doi_list.append(d)
+        self._s2_map = self._fetch_semantic_scholar_batch(doi_list, batch_size=100, sleep_seconds=1.0)
 
         results: list[dict[str, Any]] = []
         for idx, item in tqdm(
@@ -121,14 +137,19 @@ class PaperCollector:
             try:
                 pub_date = self._get_crossref_pub_date(item)
 
-                # Get abstract (and possibly publicationDate) from Semantic Scholar
-                paper_data = self._fetch_semantic_scholar_data(doi)
+                # Get abstract (and possibly publicationDate) from Semantic Scholar (batch cache first)
+                paper_data = self._s2_map.get((doi or "").lower(), {})
+                if not paper_data:
+                    # Fallback to single-call if something slipped through
+                    paper_data = self._fetch_semantic_scholar_data(doi)
                 abstract = paper_data.get("abstract") or ""
                 if paper_data.get("publicationDate"):
                     pub_date = paper_data["publicationDate"]
 
-                # Submission date via best-effort scrape
-                submission_date = self._find_submission_date(item.get("URL") or f"https://doi.org/{doi}")
+                # Submission date via best-effort scrape (opt-in via env to keep runs fast)
+                submission_date = None
+                if self.scrape_submission:
+                    submission_date = self._find_submission_date(item.get("URL") or f"https://doi.org/{doi}")
 
                 # Model mentions from title + abstract
                 text_for_search = f"{title} {abstract}"
@@ -181,6 +202,7 @@ class PaperCollector:
         filter_parts = [
             f"from-pub-date:{start_year}-01-01",
             f"until-pub-date:{end_year}-12-31",
+            "type:journal-article",
         ] + [f"container-title:{j}" for j in self.journals]
 
         params = {
@@ -191,17 +213,21 @@ class PaperCollector:
             "cursor": "*",         # enable deep paging
         }
 
-        headers = {"User-Agent": "PaperCollector"}
+        # Polite pool helps with better treatment by Crossref
+        mailto = os.getenv("CROSSREF_MAILTO")
+        if mailto:
+            params["mailto"] = mailto
+
+        headers = {"User-Agent": os.getenv("USER_AGENT", "PaperCollector/1.2")}
         items: list[dict[str, Any]] = []
         seen_dois: set[str] = set()
 
-        i = 1
-        with tqdm(desc="Searching Crossref", unit="requests") as pbar:
+        with tqdm(desc="Searching Crossref", unit="page") as pbar:
             while True:
                 try:
                     resp = requests.get(base_url, params=params, headers=headers, timeout=30)
                     if resp.status_code == 400:
-                    # Most common cause: malformed filter; surface payload for debugging
+                        # Most common cause: malformed filter; surface payload for debugging
                         raise RuntimeError(f"Crossref 400 Bad Request. Params: {params} | Body: {resp.text[:300]}")
                     resp.raise_for_status()
                 except Exception as e:
@@ -216,16 +242,12 @@ class PaperCollector:
                         continue
                     seen_dois.add(doi)
                     items.append(it)
-                    if i % 50 == 0:
-                        self.logger.info(f"{len(items)} papers collected")
-                    i += 1
                     if self.max_records and len(items) >= self.max_records:
                         break
 
-                # Update progress bar with current count
                 pbar.set_postfix(papers=len(items))
                 pbar.update(1)
-                
+
                 # Stop if max_records hit or no more cursor
                 if self.max_records and len(items) >= self.max_records:
                     break
@@ -237,9 +259,64 @@ class PaperCollector:
 
         return items
 
+    def _fetch_semantic_scholar_batch(
+        self,
+        dois: list[str],
+        batch_size: int = 100,
+        sleep_seconds: float = 1.0,
+    ) -> dict[str, dict[str, Any]]:
+        """
+        Batch-enrich DOIs via Semantic Scholar.
+
+        Args:
+            dois (list[str]): DOIs to enrich.
+            batch_size (int): DOIs per batch (S2 supports ~100).
+            sleep_seconds (float): Sleep between batch requests.
+
+        Returns:
+            dict[str, dict[str, Any]]: Mapping doi.lower() -> S2 JSON record.
+        """
+        url = "https://api.semanticscholar.org/graph/v1/paper/batch"
+        headers: dict[str, str] = {"Content-Type": "application/json"}
+        api_key = os.getenv("SEMANTICSCHOLAR_API_KEY")
+        if api_key:
+            headers["x-api-key"] = api_key
+
+        fields = "title,venue,journal,year,publicationDate,url,abstract"
+        out: dict[str, dict[str, Any]] = {}
+        if not dois:
+            return out
+
+        for i in range(0, len(dois), batch_size):
+            chunk = dois[i : i + batch_size]
+            body = {"ids": [f"DOI:{d}" for d in chunk]}
+            try:
+                resp = requests.post(url, params={"fields": fields}, json=body, headers=headers, timeout=45)
+                if resp.status_code == 404:
+                    resp_list: list[dict[str, Any]] = []
+                else:
+                    resp.raise_for_status()
+                    resp_list = resp.json() or []
+            except Exception as e:
+                self.logger.warning(f"S2 batch failed for {len(chunk)} DOIs: {e}")
+                resp_list = []
+
+            # Map by position: response order matches request order
+            for j, obj in enumerate(resp_list):
+                try:
+                    doi_key = chunk[j].split("DOI:", 1)[1].lower()
+                except Exception:
+                    continue
+                if isinstance(obj, dict):
+                    out[doi_key] = obj
+
+            time.sleep(max(0.0, sleep_seconds))
+
+        return out
+
     def _fetch_semantic_scholar_data(self, doi: str) -> dict[str, Any]:
         """
-        Fetch paper details from Semantic Scholar by DOI.
+        Fetch paper details from Semantic Scholar by DOI (single-record fallback).
 
         Args:
             doi (str): Paper DOI.

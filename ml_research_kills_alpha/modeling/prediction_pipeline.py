@@ -8,7 +8,7 @@ import re
 
 import pandas as pd
 
-from ml_research_kills_alpha.config import PROCESSED_DATA_DIR
+from ml_research_kills_alpha.config import MODELS_DIR, PROCESSED_DATA_DIR
 from ml_research_kills_alpha.support import Logger, MODELS
 from ml_research_kills_alpha.modeling.algorithms.base_model import Modeler
 from ml_research_kills_alpha.modeling.algorithms.huber_ols import HuberRegressorModel
@@ -94,7 +94,7 @@ def get_ensemble(models: list[Modeler]) -> pd.DataFrame:
         return pd.DataFrame()
     
     # get prediction files
-    paths = [PROCESSED_DATA_DIR / "preds" / f"predictions_{_sanitize_model_name(m.name)}.csv" for m in filtered]
+    paths = [MODELS_DIR / "preds" / f"predictions_{_sanitize_model_name(m.name)}.csv" for m in filtered]
     frames = [pd.read_csv(p) for p in paths if p.exists()]
     
     if not frames:
@@ -111,7 +111,7 @@ def get_ensemble(models: list[Modeler]) -> pd.DataFrame:
                   .reset_index()
                   .assign(model="ENSEMBLE"))
     
-    ensemble.to_csv(PROCESSED_DATA_DIR / "preds" / "predictions_ENSEMBLE.csv", index=False)
+    ensemble.to_csv(MODELS_DIR / "preds" / "predictions_ENSEMBLE.csv", index=False)
     return ensemble
 
 
@@ -269,22 +269,21 @@ def main():
     
     parser.add_argument("--end_year", type=int, default=2023, help="Last test year (inclusive).")
     
-    parser.add_argument("--target_col", type=str, default="ret",
-                        help="Realized return column (e.g., 'ret' or 'retx').")
+    parser.add_argument("--target_col", type=str, default="abret",
+                        help="Realized return column ('abret', 'ret' or 'retx').")
     
     parser.add_argument("--test", type=bool, default=False,
                         help="If True, runs on smaller dataset")
     
-    parser.add_argument("--force_ml", action="store_true", default=False,
+    parser.add_argument("--force_ml", type=bool, default=False,
                         help="Force retraining ML models even if predictions exist. Default: False")
     
-    parser.add_argument("--merge_shards", action="store_true", default=False,
+    parser.add_argument("--merge_shards", type=bool, default=False,
                         help="Merge predictions_*.csv shards in the preds dir into predictions.csv and exit.")
     
-    parser.add_argument("--skip_backtest", action="store_true", default=False,
+    parser.add_argument("--skip_backtest", type=bool, default=False,
                         help="If set, only runs training & prediction, skips backtest step.")
 
-    
     # models and output data for parallel runs
     parser.add_argument("--models", type=str, default="ALL",
         help="Comma-separated model names (ENET,OLS-H,FFNN2,FFNN3,FFNN4,FFNN5,...) or 'ALL'")
@@ -292,10 +291,11 @@ def main():
     args = parser.parse_args()
     
     selected = None if args.models.upper() == "ALL" else [s.strip() for s in args.models.split(",")]
-    out_root = PROCESSED_DATA_DIR
+    data_root = PROCESSED_DATA_DIR
+    out_root = MODELS_DIR
 
     # then customize output dirs with suffix to keep runs separate
-    panel_path = out_root / ("master_panel_reduced.csv" if args.test else "master_panel.csv")
+    panel_path = data_root / ("master_panel_reduced.csv" if args.test else "master_panel.csv")
     preds_dir = out_root / f"preds" if not args.test else out_root / f"preds_reduced"
     bt_dir    = out_root / f"backtests" if not args.test else out_root / f"backtests_reduced"
     

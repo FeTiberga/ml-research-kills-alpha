@@ -5,7 +5,7 @@ CUTOFF_2005 = "01/01/2005"
 
 NON_FEATURES = ["permno", "date", "prc", "shrout", "cfacpr", "cfacshr", "ticker", "cusip", "exchcd", "shrcd", "siccd", "yyyymm", "ff49_short"]
 META_COLS = ["permno"]
-PREDICTED_COL = ["ret", "retx"]
+PREDICTED_COL = ["ret", "retx", "abret"]
 
 RANDOM_SEED = 1
 

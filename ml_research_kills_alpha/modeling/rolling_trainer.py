@@ -32,7 +32,7 @@ class RollingTrainer:
     {VALIDATION_PERIOD}-year validation period before each test year.
     """
     def __init__(self, models: list[Modeler], data: pd.DataFrame,
-                 end_year: int = 2021, target_col: str = 'ret'):
+                 end_year: int = 2021, target_col: str = 'abret'):
         """
         Args:
             models (list[Modeler]): list of Modeler instances to train.

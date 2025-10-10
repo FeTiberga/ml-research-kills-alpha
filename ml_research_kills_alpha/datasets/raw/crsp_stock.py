@@ -26,23 +26,29 @@ class CRSPDownloader(Downloader):
             crsp = conn.raw_sql(f"""
             SELECT m.permno, m.date, ABS(m.prc) AS prc, m.ret, 
                    m.retx, m.shrout, m.cfacpr, m.cfacshr, n.ticker,
-                   n.cusip, n.exchcd, n.shrcd, n.siccd
+                   n.cusip, n.exchcd, n.shrcd, n.siccd, si.vwretd, si.ewretd
             FROM crsp.msf AS m
             JOIN crsp.msenames AS n
             ON m.permno = n.permno
             AND m.date >= n.namedt
             AND (n.nameendt IS NULL OR m.date <= n.nameendt)
+            JOIN crsp.msi AS si
+            ON m.date = si.date
             WHERE m.date >= '{self.start_date}'
             AND n.shrcd IN (10, 11)
             AND n.exchcd IN (1, 2, 3)
             """)
-            self.logger.info("CRSP Stock data downloaded successfully.")
+            self.logger.info("CRSP Stock and Market data downloaded successfully.")
         except Exception as e:
             self.logger.error(f"Failed to download CRSP Stock data: {e}")
             raise
 
         df: pd.DataFrame = pd.DataFrame(crsp)
         df["date"] = pd.to_datetime(df["date"])
+        
+        # compute abnormal returns
+        df["abret"] = df["ret"] - df["vwretd"]
+        
         first_date = df["date"].min()
         last_date = df["date"].max()
         self.logger.info(

@@ -58,7 +58,7 @@ class ChenZimmermannCleaner(Cleaner):
         df.columns = [to_snake_case(c) for c in df.columns]
 
         # identify feature columns
-        meta_cols = {"permno", "date", "yyyymm", "ret", "retx", "siccd", "exchcd", "shrcd", "cusip", "permco", "ticker", "bid_ask_spread_abs"}
+        meta_cols = {"permno", "date", "yyyymm", "abret", "ret", "retx", "siccd", "exchcd", "shrcd", "cusip", "permco", "ticker", "bid_ask_spread_abs"}
         numeric_cols = [c for c in df.columns if np.issubdtype(df[c].dtype, np.number)]
         feature_cols = [c for c in numeric_cols if c not in meta_cols]
 

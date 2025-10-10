@@ -4,7 +4,6 @@
 from pathlib import Path
 
 import pandas as pd
-import numpy as np
 
 from ml_research_kills_alpha.datasets.processed.cleaner import Cleaner
 from ml_research_kills_alpha.support import START_DATE
